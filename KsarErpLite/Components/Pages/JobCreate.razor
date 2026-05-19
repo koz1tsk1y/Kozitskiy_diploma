@@ -1,0 +1,159 @@
+﻿@page "/jobs/create"
+@using KsarErpLite.Models
+@using KsarErpLite.Services
+@using KsarErpLite.Data
+@inject IJobService JobService
+@inject ApplicationDbContext DbContext
+@inject NavigationManager Navigation
+
+<PageTitle>Создание заявки</PageTitle>
+
+<div class="row">
+    <div class="col-md-8 mx-auto">
+        <div class="card shadow-sm">
+            <div class="card-header bg-primary text-white">
+                <h4 class="mb-0">Новая заявка на разметку</h4>
+            </div>
+            <div class="card-body">
+                @if (isLoading)
+                {
+                    <div class="text-center"><div class="spinner-border text-primary"></div></div>
+                }
+                else
+                {
+                    @if (!string.IsNullOrEmpty(errorMessage))
+                    {
+                        <div class="alert alert-danger">@errorMessage</div>
+                    }
+
+                    <EditForm Model="@newJob" OnValidSubmit="HandleValidSubmit">
+                        <DataAnnotationsValidator />
+                        <ValidationSummary class="text-danger" />
+
+                        <div class="mb-3">
+                            <label class="form-label">Заказчик (Объект) <span class="text-danger">*</span></label>
+                            <InputText @bind-Value="newJob.Customer" class="form-control" placeholder="Например: ДЭУ-1, Трасса М1 км 25-30" />
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Тип работ <span class="text-danger">*</span></label>
+                            <InputSelect @bind-Value="newJob.WorkTypeId" class="form-select">
+                                <option value="@Guid.Empty">-- Выберите тип разметки --</option>
+                                @foreach (var type in workTypes)
+                                {
+                                    <option value="@type.Id">@type.Name (@type.Unit)</option>
+                                }
+                            </InputSelect>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Плановая дата</label>
+                            <InputDate @bind-Value="newJob.PlanDate" class="form-control" />
+                        </div>
+
+                        <div class="d-flex justify-content-between mt-4">
+                            <button type="button" class="btn btn-outline-secondary" @onclick="GoBack">Отмена</button>
+                            <button type="submit" class="btn btn-success">Создать и перейти к карте</button>
+                        </div>
+                    </EditForm>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private Job newJob = new Job { Customer = string.Empty };
+    private List<WorkType> workTypes = new();
+    private List<User> dispatchers = new();
+    private bool isLoading = true;
+    private string? errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // 1. Проверяем и сеем базовые типы работ, если справочник пуст
+        workTypes = await JobService.GetWorkTypesAsync();
+        if (!workTypes.Any())
+        {
+            DbContext.WorkTypes.Add(new WorkType { Name = "Продольная разметка 1.1", Unit = "км" });
+            DbContext.WorkTypes.Add(new WorkType { Name = "Пешеходный переход 1.14.1", Unit = "м2" });
+            await DbContext.SaveChangesAsync();
+            workTypes = await JobService.GetWorkTypesAsync();
+        }
+
+        // 2. Проверяем и сеем базового диспетчера, если таблица пользователей пуста
+        dispatchers = await JobService.GetUsersByRoleAsync(UserRole.Dispatcher);
+        if (!dispatchers.Any())
+        {
+            var defaultDispatcher = new User
+            {
+                Login = "dispatcher",
+                PasswordHash = "123",
+                FullName = "Сидоров А.П. (Диспетчер)",
+                Role = UserRole.Dispatcher
+            };
+            DbContext.Users.Add(defaultDispatcher);
+            await DbContext.SaveChangesAsync();
+            dispatchers = await JobService.GetUsersByRoleAsync(UserRole.Dispatcher);
+        }
+
+        // Привязываем заявку к текущему диспетчеру
+        var currentDispatcher = dispatchers.FirstOrDefault();
+        if (currentDispatcher != null)
+        {
+            newJob.CreatedById = currentDispatcher.Id;
+        }
+
+        isLoading = false;
+    }
+
+    private async Task HandleValidSubmit()
+    {
+        errorMessage = null;
+
+        if (newJob.WorkTypeId == Guid.Empty)
+        {
+            errorMessage = "Пожалуйста, выберите тип разметки из справочника.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(newJob.Customer))
+        {
+            errorMessage = "Поле 'Заказчик' не может быть пустым.";
+            return;
+        }
+
+        try
+        {
+            newJob.Status = JobStatus.New;
+
+            // ФИКС 1: PostgreSQL требует строго UTC-формат для дат. 
+            // Конвертируем дату из браузера в универсальное время.
+            if (newJob.PlanDate.HasValue)
+            {
+                newJob.PlanDate = DateTime.SpecifyKind(newJob.PlanDate.Value, DateTimeKind.Utc);
+            }
+
+            // ФИКС 2: Подстраховка на случай, если компонент потерял ID диспетчера при обновлении
+            if (newJob.CreatedById == Guid.Empty)
+            {
+                var disp = (await JobService.GetUsersByRoleAsync(UserRole.Dispatcher)).FirstOrDefault();
+                if (disp != null) newJob.CreatedById = disp.Id;
+            }
+
+            var createdJob = await JobService.CreateJobAsync(newJob);
+            Navigation.NavigateTo($"/jobs/{createdJob.Id}");
+        }
+        catch (Exception ex)
+        {
+            // ФИКС 3: Достаем истинную причину (InnerException) и выводим её прямо на экран
+            var realError = ex.InnerException != null ? ex.InnerException.Message : ex.Message;
+            errorMessage = $"Ошибка БД: {realError}";
+        }
+    }
+
+    private void GoBack()
+    {
+        Navigation.NavigateTo("/jobs");
+    }
+}

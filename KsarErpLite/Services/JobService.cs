@@ -56,4 +56,17 @@ public class JobService : IJobService
             await _context.SaveChangesAsync();
         }
     }
+
+    public async Task<List<WorkType>> GetWorkTypesAsync()
+    {
+        return await _context.WorkTypes.AsNoTracking().ToListAsync();
+    }
+
+    public async Task<List<User>> GetUsersByRoleAsync(UserRole role)
+    {
+        return await _context.Users
+            .Where(u => u.Role == role)
+            .AsNoTracking()
+            .ToListAsync();
+    }
 }

@@ -10,9 +10,9 @@
 
 <h3>Управление заявками</h3>
 
-<button class="btn btn-primary mb-3" @onclick="CreateTestJob">
-    + Создать тестовую заявку
-</button>
+<a href="/jobs/create" class="btn btn-primary mb-3">
+    + Создать новую заявку
+</a>
 
 @if (jobs == null)
 {
@@ -68,46 +68,6 @@ else
     private async Task LoadJobs()
     {
         jobs = await JobService.GetAllJobsAsync();
-    }
-
-    private async Task CreateTestJob()
-    {
-        // 1. Проверяем, есть ли в БД хотя бы один тип работ. Если нет - создаем.
-        var workType = DbContext.WorkTypes.FirstOrDefault();
-        if (workType == null)
-        {
-            workType = new WorkType { Name = "Продольная разметка (Тест)", Unit = "км" };
-            DbContext.WorkTypes.Add(workType);
-            await DbContext.SaveChangesAsync();
-        }
-
-        // 2. Проверяем, есть ли тестовый пользователь (Диспетчер).
-        var user = DbContext.Users.FirstOrDefault();
-        if (user == null)
-        {
-            user = new User 
-            { 
-                Login = "dispatcher_test", 
-                PasswordHash = "123", // Пока без шифрования
-                FullName = "Иванов И.И. (Диспетчер)", 
-                Role = UserRole.Dispatcher 
-            };
-            DbContext.Users.Add(user);
-            await DbContext.SaveChangesAsync();
-        }
-
-        // 3. Теперь создаем заявку, привязывая реальные ID из базы
-        var newJob = new Job
-        {
-            Customer = "ДЭУ Тест",
-            Status = JobStatus.New,
-            PlanDate = DateTime.UtcNow.AddDays(1),
-            WorkTypeId = workType.Id,
-            CreatedById = user.Id
-        };
-
-        await JobService.CreateJobAsync(newJob);
-        await LoadJobs();
     }
 
     private void GoToDetails(Guid id)

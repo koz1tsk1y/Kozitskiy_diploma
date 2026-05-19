@@ -18,4 +18,10 @@ public interface IJobService
 
     // Удалить заявку
     Task DeleteJobAsync(Guid id);
+
+    // Получить все типы работ для выпадающего списка
+    Task<List<WorkType>> GetWorkTypesAsync();
+
+    // Получить список пользователей по роли (чтобы назначить создателя/бригаду)
+    Task<List<User>> GetUsersByRoleAsync(UserRole role);
 }
