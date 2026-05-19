@@ -1,0 +1,98 @@
+﻿@page "/jobs/{Id:guid}"
+@using KsarErpLite.Models
+@using KsarErpLite.Services
+@using KsarErpLite.Components.UI
+@inject IJobService JobService
+@inject IKsarParserService KsarParser
+
+<PageTitle>Детали заявки</PageTitle>
+
+@if (job == null)
+{
+    <p><em>Загрузка данных заявки...</em></p>
+}
+else
+{
+    <div class="row mb-4">
+        <div class="col-md-6">
+            <h3>Заявка: @job.Customer</h3>
+            <p><strong>Статус:</strong> @job.Status</p>
+            <p><strong>ID:</strong> @job.Id</p>
+            @if (job.TrackLength.HasValue)
+            {
+                <p><strong>Расчетная длина трека:</strong> @Math.Round(job.TrackLength.Value, 2) точек <em>(В будущем здесь будет расчет в км)</em></p>
+            }
+        </div>
+        <div class="col-md-6 text-end">
+            <div class="card p-3 bg-light">
+                <h5>Загрузка проекта (КСАР)</h5>
+                @if (job.Status == JobStatus.New)
+                {
+                    <p class="text-muted small">Прикрепите XML-файл виртуального трека</p>
+                    <InputFile OnChange="HandleXmlUpload" accept=".xml" class="form-control" />
+                    @if (isUploading)
+                    {
+                        <div class="spinner-border spinner-border-sm text-primary mt-2" role="status"></div>
+                    }
+                }
+                else
+                {
+                    <div class="alert alert-success p-2 mb-0">Проект успешно загружен</div>
+                }
+            </div>
+        </div>
+    </div>
+
+    <LeafletMap @ref="mapComponent" MapId="jobMap" />
+}
+
+@code {
+    [Parameter]
+    public Guid Id { get; set; }
+
+    private Job? job;
+    private LeafletMap? mapComponent;
+    private bool isUploading = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        job = await JobService.GetJobByIdAsync(Id);
+    }
+
+    private async Task HandleXmlUpload(InputFileChangeEventArgs e)
+    {
+        if (job == null) return;
+        isUploading = true;
+
+        try
+        {
+            // Увеличиваем лимит размера файла до 10 МБ, так как XML с треками могут быть объемными
+            var maxAllowedSize = 10 * 1024 * 1024;
+            await using var stream = e.File.OpenReadStream(maxAllowedSize);
+            
+            // Вызываем наш парсер, написанный на Шаге 18
+            var trackData = await KsarParser.ParseXmlAsync(stream);
+
+            if (trackData.TrackPoints.Any() && mapComponent != null)
+            {
+                // Отрисовываем трек на карте
+                await mapComponent.DrawTrackAsync(trackData);
+
+                // Обновляем статус заявки и сохраняем информацию
+                job.Status = JobStatus.ProjectLoaded;
+                job.TrackLength = trackData.TrackPoints.Count; // Пока просто количество точек для примера
+                
+                await JobService.UpdateJobAsync(job);
+            }
+        }
+        catch (Exception ex)
+        {
+            // В реальном проекте здесь логируется ошибка
+            Console.WriteLine($"Ошибка при загрузке XML: {ex.Message}");
+        }
+        finally
+        {
+            isUploading = false;
+        }
+    }
+}
