@@ -2,6 +2,7 @@
 @using KsarErpLite.Models
 @using KsarErpLite.Services
 @using KsarErpLite.Components.UI
+@using System.IO
 @inject IJobService JobService
 @inject IKsarParserService KsarParser
 
@@ -20,7 +21,7 @@ else
             <p><strong>ID:</strong> @job.Id</p>
             @if (job.TrackLength.HasValue)
             {
-                <p><strong>Расчетная длина трека:</strong> @Math.Round(job.TrackLength.Value, 2) точек <em>(В будущем здесь будет расчет в км)</em></p>
+                <p><strong>Количество точек трека:</strong> @job.TrackLength.Value</p>
             }
         </div>
         <div class="col-md-6 text-end">
@@ -43,7 +44,7 @@ else
         </div>
     </div>
 
-    <LeafletMap @ref="mapComponent" MapId="jobMap" />
+    <LeafletMap @ref="mapComponent" MapId="jobMap" OnMapReady="RestoreTrackAsync" />
 }
 
 @code {
@@ -59,6 +60,28 @@ else
         job = await JobService.GetJobByIdAsync(Id);
     }
 
+    // Этот метод теперь вызывается ТОЛЬКО когда карта физически готова
+    private async Task RestoreTrackAsync()
+    {
+        if (job != null && !string.IsNullOrEmpty(job.KsarXmlRoute) && File.Exists(job.KsarXmlRoute))
+        {
+            try
+            {
+                await using var readStream = File.OpenRead(job.KsarXmlRoute);
+                var trackData = await KsarParser.ParseXmlAsync(readStream);
+                
+                if (mapComponent != null)
+                {
+                    await mapComponent.DrawTrackAsync(trackData);
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Ошибка авто-восстановления трека: {ex.Message}");
+            }
+        }
+    }
+
     private async Task HandleXmlUpload(InputFileChangeEventArgs e)
     {
         if (job == null) return;
@@ -66,29 +89,46 @@ else
 
         try
         {
-            // Увеличиваем лимит размера файла до 10 МБ, так как XML с треками могут быть объемными
-            var maxAllowedSize = 10 * 1024 * 1024;
-            await using var stream = e.File.OpenReadStream(maxAllowedSize);
+            var maxAllowedSize = 10 * 1024 * 1024; // Лимит 10 МБ
             
-            // Вызываем наш парсер, написанный на Шаге 18
-            var trackData = await KsarParser.ParseXmlAsync(stream);
-
-            if (trackData.TrackPoints.Any() && mapComponent != null)
+            // Определяем путь к папке Uploads в корне проекта
+            var uploadsFolder = Path.Combine(Directory.GetCurrentDirectory(), "Uploads");
+            if (!Directory.Exists(uploadsFolder))
             {
-                // Отрисовываем трек на карте
-                await mapComponent.DrawTrackAsync(trackData);
+                Directory.CreateDirectory(uploadsFolder);
+            }
 
-                // Обновляем статус заявки и сохраняем информацию
-                job.Status = JobStatus.ProjectLoaded;
-                job.TrackLength = trackData.TrackPoints.Count; // Пока просто количество точек для примера
-                
-                await JobService.UpdateJobAsync(job);
+            // Формируем имя файла на основе ID заявки
+            var filePath = Path.Combine(uploadsFolder, $"{job.Id}.xml");
+
+            // Физически сохраняем файл из браузера на диск сервера
+            await using (var fileStream = new FileStream(filePath, FileMode.Create))
+            {
+                await e.File.OpenReadStream(maxAllowedSize).CopyToAsync(fileStream);
+            }
+
+            // Читаем уже сохраненный файл для парсинга и вывода на карту
+            await using (var readStream = File.OpenRead(filePath))
+            {
+                var trackData = await KsarParser.ParseXmlAsync(readStream);
+
+                if (trackData.TrackPoints.Any() && mapComponent != null)
+                {
+                    // Отрисовка
+                    await mapComponent.DrawTrackAsync(trackData);
+
+                    // Обновление данных в БД
+                    job.Status = JobStatus.ProjectLoaded;
+                    job.TrackLength = trackData.TrackPoints.Count;
+                    job.KsarXmlRoute = filePath; // Записываем путь к файлу в базу данных
+                    
+                    await JobService.UpdateJobAsync(job);
+                }
             }
         }
         catch (Exception ex)
         {
-            // В реальном проекте здесь логируется ошибка
-            Console.WriteLine($"Ошибка при загрузке XML: {ex.Message}");
+            Console.WriteLine($"Ошибка при обработке и сохранении XML: {ex.Message}");
         }
         finally
         {

@@ -1,25 +1,31 @@
 ﻿@inject IJSRuntime JSRuntime
 @using KsarErpLite.Models
 
-@* Контейнер для карты с фиксированной высотой *@
 <div id="@MapId" style="height: 500px; width: 100%; border-radius: 8px; border: 1px solid #ccc;"></div>
 
 @code {
     [Parameter]
     public string MapId { get; set; } = "map";
 
-    // Вызывается после того, как HTML-элемент отрендерился в браузере
+    // Создаем событие, на которое сможет подписаться родительская страница
+    [Parameter]
+    public EventCallback OnMapReady { get; set; }
+
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender)
         {
-            // Инициализируем карту через наш JS-скрипт
+            // 1. Сначала инициализируем саму карту
             await JSRuntime.InvokeVoidAsync("ksarMap.init", MapId);
+            
+            // 2. Затем сообщаем родительскому компоненту, что мы готовы
+            if (OnMapReady.HasDelegate)
+            {
+                await OnMapReady.InvokeAsync();
+            }
         }
     }
 
-    // Публичный метод, который можно вызывать из других страниц
-    // для передачи координат и отрисовки трека
     public async Task DrawTrackAsync(KsarTrackData trackData)
     {
         await JSRuntime.InvokeVoidAsync("ksarMap.drawKsarTrack", trackData);
