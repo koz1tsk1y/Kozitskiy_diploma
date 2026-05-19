@@ -1,6 +1,7 @@
 using KsarErpLite.Components;
 using KsarErpLite.Data;
 using Microsoft.EntityFrameworkCore;
+using KsarErpLite.Services;
 
 namespace KsarErpLite
 {
@@ -19,6 +20,9 @@ namespace KsarErpLite
                 options.UseNpgsql(
                     builder.Configuration.GetConnectionString("DefaultConnection"),
                     o => o.UseNetTopologySuite()));
+
+            // Регистрация сервиса заявок
+            builder.Services.AddScoped<IJobService, JobService>();
 
             var app = builder.Build();
 
