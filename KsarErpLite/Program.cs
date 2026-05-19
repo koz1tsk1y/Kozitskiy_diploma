@@ -24,6 +24,8 @@ namespace KsarErpLite
             // Регистрация сервиса заявок
             builder.Services.AddScoped<IJobService, JobService>();
 
+            builder.Services.AddScoped<IKsarParserService, KsarParserService>();
+
             var app = builder.Build();
 
             // Configure the HTTP request pipeline.
