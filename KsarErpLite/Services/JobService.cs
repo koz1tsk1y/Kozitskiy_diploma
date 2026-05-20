@@ -123,20 +123,21 @@ public class JobService : IJobService
 
     public async Task DeleteWorkTypeAsync(Guid id)
     {
+        // 1. Явная проверка: есть ли в базе хоть одна заявка с этим типом работ?
+        bool isUsedInJobs = await _context.Jobs.AnyAsync(j => j.WorkTypeId == id);
+
+        if (isUsedInJobs)
+        {
+            // Если есть, мы даже не пытаемся удалить, а сразу прерываем процесс
+            throw new InvalidOperationException("Невозможно удалить тип работ: он уже используется в существующих заявках. Сначала удалите заявки или переведите их на другой тип.");
+        }
+
+        // 2. Если связанных заявок нет, безопасно удаляем
         var workType = await _context.WorkTypes.FindAsync(id);
         if (workType != null)
         {
-            try
-            {
-                _context.WorkTypes.Remove(workType);
-                await _context.SaveChangesAsync();
-            }
-            catch (Exception ex)
-            {
-                // Защита от удаления: если тип работ уже привязан к заявке, БД не даст его удалить.
-                Console.WriteLine($"Ошибка удаления типа работ: {ex.Message}");
-                throw new InvalidOperationException("Невозможно удалить тип работ, так как он используется в существующих заявках.");
-            }
+            _context.WorkTypes.Remove(workType);
+            await _context.SaveChangesAsync();
         }
     }
 }
