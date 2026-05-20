@@ -1,0 +1,193 @@
+﻿@page "/reports/materials"
+@rendermode InteractiveServer
+@using KsarErpLite.Models
+@using KsarErpLite.Services
+@inject IJobService JobService
+
+<PageTitle>Отчет по расходу материалов</PageTitle>
+
+<div class="container-fluid py-4">
+    <h3 class="mb-4 fw-bold">📉 Производственный отчет: Расход материалов</h3>
+
+    <div class="card shadow-sm border-0 mb-4 bg-light">
+        <div class="card-body">
+            <div class="row g-3 align-items-end">
+                <div class="col-md-4">
+                    <label class="form-label small fw-bold text-secondary">Выберите месяц</label>
+                    <select class="form-select" @bind="selectedMonth">
+                        <option value="1">Январь</option>
+                        <option value="2">Февраль</option>
+                        <option value="3">Март</option>
+                        <option value="4">Апрель</option>
+                        <option value="5">Май</option>
+                        <option value="6">Июнь</option>
+                        <option value="7">Июль</option>
+                        <option value="8">Август</option>
+                        <option value="9">Сентябрь</option>
+                        <option value="10">Октябрь</option>
+                        <option value="11">Ноябрь</option>
+                        <option value="12">Декабрь</option>
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label small fw-bold text-secondary">Год</label>
+                    <select class="form-select" @bind="selectedYear">
+                        <option value="2025">2025 год</option>
+                        <option value="2026">2026 год</option>
+                        <option value="2027">2027 год</option>
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <button class="btn btn-primary w-100 fw-bold" @onclick="GenerateReport">
+                        📊 Сформировать отчет
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @if (reportJobs == null)
+    {
+        <div class="text-center py-5"><div class="spinner-border text-primary"></div></div>
+    }
+    else if (!reportJobs.Any())
+    {
+        <div class="alert alert-light text-center py-5 rounded-4 border">
+            <h5>Нет данных за указанный период</h5>
+            <p class="text-muted mb-0">Заявки со статусом «Выполнена» или «В архиве» за этот месяц отсутствуют.</p>
+        </div>
+    }
+    else
+    {
+        <div class="card shadow-sm border-0 mb-4">
+            <div class="card-header bg-white fw-bold py-3">Детализация расчета по объектам</div>
+            <div class="card-body p-0">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th class="ps-4">Объект / Заказчик</th>
+                            <th>Тип разметки</th>
+                            <th>Выполнено (Факт)</th>
+                            <th>Расход эмали (Норма)</th>
+                            <th class="pe-4">Расход стеклошариков (Норма)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var job in reportJobs)
+                        {
+                            var volume = CalculateActualVolume(job);
+                            var paint = CalculatePaint(job, volume);
+                            var beads = CalculateBeads(job, volume);
+
+                            <tr>
+                                <td class="ps-4 fw-bold">@job.Customer</td>
+                                <td>@job.WorkType?.Name</td>
+                                <td>
+                                    <span class="badge bg-secondary fs-6">
+                                        @volume.ToString("F2") @job.WorkType?.Unit
+                                    </span>
+                                </td>
+                                <td class="text-danger fw-bold">@paint.ToString("F1") кг</td>
+                                <td class="text-info fw-bold pe-4">@beads.ToString("F1") кг</td>
+                            </tr>
+                        }
+                    </tbody>
+                    <tfoot class="table-light border-top fw-bold">
+                        <tr>
+                            <td colspan="2" class="ps-4 text-uppercase">Итого к списанию:</td>
+                            <td>—</td>
+                            <td class="text-danger fs-5">@totalPaint.ToString("F1") кг</td>
+                            <td class="text-info fs-5 pe-4">@totalBeads.ToString("F1") кг</td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </div>
+
+        <div class="row g-4">
+            <div class="col-md-6">
+                <div class="card border-0 shadow-sm rounded-4 bg-light text-dark p-3 border-start border-danger border-5">
+                    <h6 class="text-uppercase small fw-bold text-secondary mb-1">Сводный складской ордер: Дорожная эмаль</h6>
+                    <h3 class="fw-bold text-danger">@totalPaint.ToString("F1") кг</h3>
+                    <p class="small text-muted mb-0">Требуется затребовать со склада для закрытия материального отчета.</p>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card border-0 shadow-sm rounded-4 bg-light text-dark p-3 border-start border-info border-5">
+                    <h6 class="text-uppercase small fw-bold text-secondary mb-1">Сводный складской ордер: Стеклошарики</h6>
+                    <h3 class="fw-bold text-info">@totalBeads.ToString("F1") кг</h3>
+                    <p class="small text-muted mb-0">Световозвращающие элементы фракции 100-600 мкм для посыпки.</p>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private int selectedMonth = DateTime.Now.Month;
+    private int selectedYear = DateTime.Now.Year;
+    
+    private List<Job>? reportJobs;
+    private double totalPaint = 0;
+    private double totalBeads = 0;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await GenerateReport();
+    }
+
+    private async Task GenerateReport()
+    {
+        reportJobs = await JobService.GetJobsForReportAsync(selectedYear, selectedMonth);
+        CalculateTotals();
+    }
+
+    // Моделируем расчет физического объема выполненных работ на основе количества GPS точек из КСАР
+    private double CalculateActualVolume(Job job)
+    {
+        if (!job.TrackLength.HasValue || job.TrackLength.Value == 0) return 0;
+
+        // Если ед. измерения км (продольная разметка) - переводим точки в км (например, 1 точка = 2 метра трассы)
+        if (job.WorkType?.Unit?.ToLower() == "км")
+        {
+            return (job.TrackLength.Value * 2.0) / 1000.0;
+        }
+        
+        // Если ед. измерения м2 (пешеходные переходы) - переводим точки в квадраты (например, 1 точка лога = 0.5 м2)
+        if (job.WorkType?.Unit?.ToLower() == "м2")
+        {
+            return job.TrackLength.Value * 0.5;
+        }
+
+        return job.TrackLength.Value;
+    }
+
+    private double CalculatePaint(Job job, double volume)
+    {
+        if (job.WorkType?.Unit?.ToLower() == "км") return volume * 450.0; // 450 кг на 1 км
+        if (job.WorkType?.Unit?.ToLower() == "м2") return volume * 3.5;   // 3.5 кг на 1 м2
+        return volume * 1.0;
+    }
+
+    private double CalculateBeads(Job job, double volume)
+    {
+        if (job.WorkType?.Unit?.ToLower() == "км") return volume * 160.0; // 160 кг на 1 км
+        if (job.WorkType?.Unit?.ToLower() == "м2") return volume * 0.6;   // 0.6 кг на 1 м2
+        return volume * 0.2;
+    }
+
+    private void CalculateTotals()
+    {
+        totalPaint = 0;
+        totalBeads = 0;
+
+        if (reportJobs == null) return;
+
+        foreach (var job in reportJobs)
+        {
+            var volume = CalculateActualVolume(job);
+            totalPaint += CalculatePaint(job, volume);
+            totalBeads += CalculateBeads(job, volume);
+        }
+    }
+}

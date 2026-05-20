@@ -37,4 +37,7 @@ public interface IJobService
     // Управление справочником типов работ
     Task<WorkType> CreateWorkTypeAsync(WorkType workType);
     Task DeleteWorkTypeAsync(Guid id);
+
+    // Получение выполненных и закрытых задач для материального отчета
+    Task<List<Job>> GetJobsForReportAsync(int year, int month);
 }

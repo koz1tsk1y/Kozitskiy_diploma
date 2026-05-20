@@ -140,4 +140,18 @@ public class JobService : IJobService
             await _context.SaveChangesAsync();
         }
     }
+
+    public async Task<List<Job>> GetJobsForReportAsync(int year, int month)
+    {
+        var startDate = new DateTime(year, month, 1, 0, 0, 0, DateTimeKind.Utc);
+        var endDate = startDate.AddMonths(1);
+
+        return await _context.Jobs
+            .Include(j => j.WorkType)
+            .Where(j => j.PlanDate >= startDate && j.PlanDate < endDate
+                        && (j.Status == JobStatus.Completed || j.Status == JobStatus.Closed))
+            .OrderBy(j => j.PlanDate)
+            .AsNoTracking()
+            .ToListAsync();
+    }
 }
