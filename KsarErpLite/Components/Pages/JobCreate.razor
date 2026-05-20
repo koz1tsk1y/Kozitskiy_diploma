@@ -120,16 +120,20 @@
 
         try
         {
-            newJob.Status = JobStatus.New;
-
+            // Автоматически определяем стартовый статус на основе выбранной даты
             if (newJob.PlanDate.HasValue)
             {
                 newJob.PlanDate = DateTime.SpecifyKind(newJob.PlanDate.Value, DateTimeKind.Utc);
+                newJob.Status = JobStatus.Scheduled; // Дата указана -> сразу в расписание
+            }
+            else
+            {
+                newJob.Status = JobStatus.New; // Даты нет -> в очередь как новая
             }
 
             var createdJob = await JobService.CreateJobAsync(newJob);
             
-            // В режиме InteractiveServer редирект работает мягко, без исключений
+            // Переходим в карточку для загрузки XML
             Navigation.NavigateTo($"/jobs/{createdJob.Id}");
         }
         catch (Exception ex)
