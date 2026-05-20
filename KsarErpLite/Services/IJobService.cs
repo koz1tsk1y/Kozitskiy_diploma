@@ -27,4 +27,7 @@ public interface IJobService
 
     // Получить заявки для календаря (без даты + на конкретный месяц)
     Task<List<Job>> GetJobsForPlanningAsync(int year, int month);
+
+    // Получить активные задания для мобильного приложения бригадира
+    Task<List<Job>> GetActiveJobsForForemanAsync();
 }

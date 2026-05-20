@@ -122,19 +122,31 @@
     {
         if (draggedJob != null)
         {
-            // Обновляем дату
+            // 1. Обновляем плановую дату
             draggedJob.PlanDate = newDate;
             
-            // Если перетащили в календарь, меняем статус с "Новая" на "Запланирована"
-            if (newDate != null && draggedJob.Status == JobStatus.New)
+            if (newDate != null)
             {
-                draggedJob.Status = JobStatus.Scheduled;
+                // Кейс А: Перетащили в календарь. 
+                // Меняем статус на Запланирована, если она была Новой или с загруженным проектом
+                if (draggedJob.Status == JobStatus.New || draggedJob.Status == JobStatus.ProjectLoaded)
+                {
+                    draggedJob.Status = JobStatus.Scheduled;
+                }
+            }
+            else
+            {
+                // Кейс Б: Перетащили обратно в левую колонку (сняли с графика).
+                // Возвращаем статус назад. Если XML-путь есть - значит проект загружен, иначе - просто Новая.
+                draggedJob.Status = !string.IsNullOrEmpty(draggedJob.KsarXmlRoute)
+                    ? JobStatus.ProjectLoaded
+                    : JobStatus.New;
             }
 
-            // Обновляем в БД
+            // 2. Сохраняем изменения в базу данных через сервис
             await JobService.UpdateJobAsync(draggedJob);
             
-            // Перезагружаем данные
+            // 3. Перезагружаем сетку календаря
             await LoadCalendarData();
             
             draggedJob = null; // Очищаем буфер

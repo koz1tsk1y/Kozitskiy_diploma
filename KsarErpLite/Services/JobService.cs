@@ -92,4 +92,15 @@ public class JobService : IJobService
             .AsNoTracking()
             .ToListAsync();
     }
+
+    public async Task<List<Job>> GetActiveJobsForForemanAsync()
+    {
+        return await _context.Jobs
+            .Include(j => j.WorkType)
+            // Берем только запланированные или уже в работе
+            .Where(j => j.Status == JobStatus.Scheduled || j.Status == JobStatus.InProgress)
+            .OrderBy(j => j.PlanDate)
+            .AsNoTracking()
+            .ToListAsync();
+    }
 }

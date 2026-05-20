@@ -1,0 +1,87 @@
+﻿@page "/foreman"
+@rendermode InteractiveServer
+@using KsarErpLite.Models
+@using KsarErpLite.Services
+@inject IJobService JobService
+@inject NavigationManager Navigation
+
+<PageTitle>Задания (Бригадир)</PageTitle>
+
+<div class="container-fluid pb-5" style="max-width: 600px; margin: 0 auto;">
+    <h3 class="mt-4 mb-4 fw-bold">План работ</h3>
+
+    @if (jobs == null)
+    {
+        <div class="text-center mt-5"><div class="spinner-border text-warning"></div></div>
+    }
+    else if (!jobs.Any())
+    {
+        <div class="alert alert-success text-center mt-5 rounded-4 shadow-sm">
+            <h1 class="display-4">🎉</h1>
+            <h5 class="fw-bold">Отличная работа!</h5>
+            <p class="mb-0">Активных заданий нет, можно отдыхать.</p>
+        </div>
+    }
+    else
+    {
+        <div class="row g-4">
+            @foreach (var job in jobs)
+            {
+                <div class="col-12">
+                    <div class="card shadow border-0 rounded-4">
+                        <div class="card-body p-4">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <span class="badge @(job.Status == JobStatus.InProgress ? "bg-warning text-dark" : "bg-primary") fs-6 rounded-pill px-3">
+                                    @(job.Status == JobStatus.InProgress ? "В работе" : "Ожидает")
+                                </span>
+                                <small class="text-muted fw-bold">@(job.PlanDate?.ToString("dd.MM.yyyy") ?? "")</small>
+                            </div>
+                            
+                            <h4 class="card-title fw-bold mb-1">@job.Customer</h4>
+                            <p class="card-text text-secondary mb-4">
+                                <i class="bi bi-tools"></i> @(job.WorkType?.Name ?? "Тип работ не указан")
+                            </p>
+
+                            @if (job.Status == JobStatus.Scheduled)
+                            {
+                                <button class="btn btn-primary w-100 py-3 fw-bold rounded-4 fs-5" @onclick="() => StartJob(job)">
+                                    ▶ НАЧАТЬ РАБОТУ
+                                </button>
+                            }
+                            else if (job.Status == JobStatus.InProgress)
+                            {
+                                <a href="/foreman/job/@job.Id" class="btn btn-warning w-100 py-3 fw-bold rounded-4 fs-5 text-dark">
+                                    🗺 ОТКРЫТЬ КАРТУ
+                                </a>
+                            }
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    private List<Job>? jobs;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadJobs();
+    }
+
+    private async Task LoadJobs()
+    {
+        jobs = await JobService.GetActiveJobsForForemanAsync();
+    }
+
+    private async Task StartJob(Job job)
+    {
+        // Бригадир нажимает кнопку, статус меняется
+        job.Status = JobStatus.InProgress;
+        await JobService.UpdateJobAsync(job);
+        
+        // Перезагружаем список, чтобы кнопка изменилась
+        await LoadJobs();
+    }
+}
