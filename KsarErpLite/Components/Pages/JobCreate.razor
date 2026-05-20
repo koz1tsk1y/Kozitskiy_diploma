@@ -72,16 +72,14 @@
 
     protected override async Task OnInitializedAsync()
     {
+        // Просто загружаем то, что есть в справочнике. Если там пусто — значит пусто.
         workTypes = await JobService.GetWorkTypesAsync();
-        if (!workTypes.Any())
-        {
-            DbContext.WorkTypes.Add(new WorkType { Name = "Продольная разметка 1.1", Unit = "км" });
-            DbContext.WorkTypes.Add(new WorkType { Name = "Пешеходный переход 1.14.1", Unit = "м2" });
-            await DbContext.SaveChangesAsync();
-            workTypes = await JobService.GetWorkTypesAsync();
-        }
 
+        // Загружаем диспетчеров для привязки создателя заявки
         dispatchers = await JobService.GetUsersByRoleAsync(UserRole.Dispatcher);
+        
+        // Подстраховка: если пользователей в системе вообще нет, оставим одну дефолтную учетку
+        // чтобы не ломать логику внешних ключей (Foreign Key) при сохранении заявки.
         if (!dispatchers.Any())
         {
             DbContext.Users.Add(new User

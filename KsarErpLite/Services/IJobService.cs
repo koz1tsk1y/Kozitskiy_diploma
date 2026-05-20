@@ -33,4 +33,8 @@ public interface IJobService
 
     // Аналитика для главного экрана
     Task<Dictionary<JobStatus, int>> GetJobsStatisticsAsync();
+
+    // Управление справочником типов работ
+    Task<WorkType> CreateWorkTypeAsync(WorkType workType);
+    Task DeleteWorkTypeAsync(Guid id);
 }

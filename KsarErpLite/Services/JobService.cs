@@ -113,4 +113,30 @@ public class JobService : IJobService
             .Select(g => new { Status = g.Key, Count = g.Count() })
             .ToDictionaryAsync(k => k.Status, v => v.Count);
     }
+
+    public async Task<WorkType> CreateWorkTypeAsync(WorkType workType)
+    {
+        _context.WorkTypes.Add(workType);
+        await _context.SaveChangesAsync();
+        return workType;
+    }
+
+    public async Task DeleteWorkTypeAsync(Guid id)
+    {
+        var workType = await _context.WorkTypes.FindAsync(id);
+        if (workType != null)
+        {
+            try
+            {
+                _context.WorkTypes.Remove(workType);
+                await _context.SaveChangesAsync();
+            }
+            catch (Exception ex)
+            {
+                // Защита от удаления: если тип работ уже привязан к заявке, БД не даст его удалить.
+                Console.WriteLine($"Ошибка удаления типа работ: {ex.Message}");
+                throw new InvalidOperationException("Невозможно удалить тип работ, так как он используется в существующих заявках.");
+            }
+        }
+    }
 }

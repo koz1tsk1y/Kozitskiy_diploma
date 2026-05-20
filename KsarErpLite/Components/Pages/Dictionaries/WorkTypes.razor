@@ -1,0 +1,133 @@
+﻿@page "/dictionaries/worktypes"
+@rendermode InteractiveServer
+@using KsarErpLite.Models
+@using KsarErpLite.Services
+@inject IJobService JobService
+
+<PageTitle>Справочник: Типы работ</PageTitle>
+
+<div class="container-fluid py-4" style="max-width: 800px;">
+    <h3 class="mb-4 fw-bold">Справочник: Типы разметки</h3>
+
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            @errorMessage
+            <button type="button" class="btn-close" @onclick="() => errorMessage = null"></button>
+        </div>
+    }
+
+    <div class="card shadow-sm border-0 mb-4 bg-light">
+        <div class="card-body">
+            <h6 class="fw-bold mb-3">Добавить новый тип работ</h6>
+            <EditForm Model="newWorkType" OnValidSubmit="AddWorkType" FormName="AddWorkTypeForm">
+                <DataAnnotationsValidator />
+                <div class="row g-2">
+                    <div class="col-md-7">
+                        <InputText @bind-Value="newWorkType.Name" class="form-control" placeholder="Название (например: Осевая линия 1.5)" required />
+                    </div>
+                    <div class="col-md-3">
+                        <InputText @bind-Value="newWorkType.Unit" class="form-control" placeholder="Ед. изм. (км, м2)" required />
+                    </div>
+                    <div class="col-md-2">
+                        <button type="submit" class="btn btn-primary w-100 fw-bold">➕</button>
+                    </div>
+                </div>
+            </EditForm>
+        </div>
+    </div>
+
+    <div class="card shadow-sm border-0">
+        <div class="card-body p-0">
+            @if (workTypes == null)
+            {
+                <div class="text-center p-4"><div class="spinner-border text-secondary"></div></div>
+            }
+            else if (!workTypes.Any())
+            {
+                <div class="text-center p-4 text-muted">Справочник пуст.</div>
+            }
+            else
+            {
+                <table class="table table-hover mb-0 align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th class="ps-4">Наименование работ</th>
+                            <th>Единица изм.</th>
+                            <th class="text-end pe-4">Действия</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var wt in workTypes)
+                        {
+                            <tr>
+                                <td class="ps-4 fw-bold">@wt.Name</td>
+                                <td><span class="badge bg-secondary">@wt.Unit</span></td>
+                                <td class="text-end pe-4">
+                                    <button class="btn btn-sm btn-outline-danger" @onclick="() => DeleteWorkType(wt.Id)">
+                                        Удалить
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    private List<WorkType>? workTypes;
+    
+    [SupplyParameterFromForm]
+    private WorkType newWorkType { get; set; } = new WorkType { Name = string.Empty, Unit = string.Empty };
+    
+    private string? errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        workTypes = await JobService.GetWorkTypesAsync();
+    }
+
+    private async Task AddWorkType()
+    {
+        errorMessage = null;
+        try
+        {
+            await JobService.CreateWorkTypeAsync(newWorkType);
+            
+            // Очищаем форму
+            newWorkType = new WorkType { Name = string.Empty, Unit = string.Empty };
+            
+            await LoadData();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "Ошибка при сохранении: " + ex.Message;
+        }
+    }
+
+    private async Task DeleteWorkType(Guid id)
+    {
+        errorMessage = null;
+        try
+        {
+            await JobService.DeleteWorkTypeAsync(id);
+            await LoadData();
+        }
+        catch (InvalidOperationException ex)
+        {
+            errorMessage = ex.Message; // Выводим нашу кастомную ошибку из сервиса
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "Ошибка удаления: " + ex.Message;
+        }
+    }
+}
