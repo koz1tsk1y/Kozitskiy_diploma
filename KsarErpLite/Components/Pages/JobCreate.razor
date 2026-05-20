@@ -1,4 +1,5 @@
 ﻿@page "/jobs/create"
+@rendermode InteractiveServer
 @using KsarErpLite.Models
 @using KsarErpLite.Services
 @using KsarErpLite.Data
@@ -26,7 +27,7 @@
                         <div class="alert alert-danger">@errorMessage</div>
                     }
 
-                    <EditForm Model="@newJob" OnValidSubmit="HandleValidSubmit" FormName="CreateJobForm">
+                    <EditForm Model="@newJob" OnValidSubmit="HandleValidSubmit">
                         <DataAnnotationsValidator />
                         <ValidationSummary class="text-danger" />
 
@@ -52,7 +53,7 @@
                         </div>
 
                         <div class="d-flex justify-content-between mt-4">
-                            <button type="button" class="btn btn-outline-secondary" @onclick="GoBack">Отмена</button>
+                            <a href="/jobs" class="btn btn-outline-secondary">Отмена</a>
                             <button type="submit" class="btn btn-success">Создать и перейти к карте</button>
                         </div>
                     </EditForm>
@@ -63,8 +64,7 @@
 </div>
 
 @code {
-    [SupplyParameterFromForm]
-    private Job newJob { get; set; } = new Job { Customer = string.Empty };
+    private Job newJob = new Job { Customer = string.Empty };
     private List<WorkType> workTypes = new();
     private List<User> dispatchers = new();
     private bool isLoading = true;
@@ -72,7 +72,6 @@
 
     protected override async Task OnInitializedAsync()
     {
-        // 1. Проверяем и сеем базовые типы работ, если справочник пуст
         workTypes = await JobService.GetWorkTypesAsync();
         if (!workTypes.Any())
         {
@@ -82,23 +81,20 @@
             workTypes = await JobService.GetWorkTypesAsync();
         }
 
-        // 2. Проверяем и сеем базового диспетчера, если таблица пользователей пуста
         dispatchers = await JobService.GetUsersByRoleAsync(UserRole.Dispatcher);
         if (!dispatchers.Any())
         {
-            var defaultDispatcher = new User
+            DbContext.Users.Add(new User
             {
                 Login = "dispatcher",
                 PasswordHash = "123",
                 FullName = "Сидоров А.П. (Диспетчер)",
                 Role = UserRole.Dispatcher
-            };
-            DbContext.Users.Add(defaultDispatcher);
+            });
             await DbContext.SaveChangesAsync();
             dispatchers = await JobService.GetUsersByRoleAsync(UserRole.Dispatcher);
         }
 
-        // Привязываем заявку к текущему диспетчеру
         var currentDispatcher = dispatchers.FirstOrDefault();
         if (currentDispatcher != null)
         {
@@ -133,32 +129,15 @@
                 newJob.PlanDate = DateTime.SpecifyKind(newJob.PlanDate.Value, DateTimeKind.Utc);
             }
 
-            if (newJob.CreatedById == Guid.Empty)
-            {
-                var disp = (await JobService.GetUsersByRoleAsync(UserRole.Dispatcher)).FirstOrDefault();
-                if (disp != null) newJob.CreatedById = disp.Id;
-            }
-
             var createdJob = await JobService.CreateJobAsync(newJob);
             
-            // Эта команда генерирует NavigationException для смены страницы
+            // В режиме InteractiveServer редирект работает мягко, без исключений
             Navigation.NavigateTo($"/jobs/{createdJob.Id}");
-        }
-        catch (NavigationException)
-        {
-            // Системное исключение Blazor для редиректа. 
-            // Просто пробрасываем его дальше, чтобы страница переключилась!
-            throw;
         }
         catch (Exception ex)
         {
             var realError = ex.InnerException != null ? ex.InnerException.Message : ex.Message;
             errorMessage = $"Ошибка БД: {realError}";
         }
-    }
-
-    private void GoBack()
-    {
-        Navigation.NavigateTo("/jobs");
     }
 }

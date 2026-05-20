@@ -6,6 +6,7 @@
 @using System.IO
 @inject IJobService JobService
 @inject IKsarParserService KsarParser
+@inject NavigationManager Navigation
 
 <PageTitle>Детали заявки</PageTitle>
 
@@ -20,6 +21,9 @@ else
             <h3>Заявка: @job.Customer</h3>
             <p><strong>Статус:</strong> @job.Status</p>
             <p><strong>ID:</strong> @job.Id</p>
+            <button class="btn btn-sm btn-outline-danger mt-2" @onclick="DeleteCurrentJob">
+                🗑 Удалить заявку
+            </button>
             @if (job.TrackLength.HasValue)
             {
                 <p><strong>Количество точек трека:</strong> @job.TrackLength.Value</p>
@@ -59,6 +63,15 @@ else
     protected override async Task OnInitializedAsync()
     {
         job = await JobService.GetJobByIdAsync(Id);
+    }
+
+    private async Task DeleteCurrentJob()
+    {
+        // Вызываем метод удаления из нашего сервиса
+        await JobService.DeleteJobAsync(job!.Id);
+
+        // Возвращаемся в список заявок
+        Navigation.NavigateTo("/jobs");
     }
 
     // Этот метод теперь вызывается ТОЛЬКО когда карта физически готова
