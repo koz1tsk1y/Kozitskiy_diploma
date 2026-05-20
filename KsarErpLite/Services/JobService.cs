@@ -81,14 +81,16 @@ public class JobService : IJobService
 
     public async Task<List<Job>> GetJobsForPlanningAsync(int year, int month)
     {
-        // Создаем границы месяца в UTC (так как PostgreSQL требует UTC)
         var startDate = new DateTime(year, month, 1, 0, 0, 0, DateTimeKind.Utc);
         var endDate = startDate.AddMonths(1);
 
         return await _context.Jobs
             .Include(j => j.WorkType)
             .Include(j => j.Foreman)
-            .Where(j => j.PlanDate == null || (j.PlanDate >= startDate && j.PlanDate < endDate))
+            .Where(j => (j.PlanDate == null || (j.PlanDate >= startDate && j.PlanDate < endDate))
+                        // убираем из календаря то, что уже завершено или в архиве
+                        && j.Status != JobStatus.Completed
+                        && j.Status != JobStatus.Closed)
             .AsNoTracking()
             .ToListAsync();
     }

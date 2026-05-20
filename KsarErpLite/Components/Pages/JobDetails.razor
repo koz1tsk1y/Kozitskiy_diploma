@@ -24,6 +24,18 @@ else
             <button class="btn btn-sm btn-outline-danger mt-2" @onclick="DeleteCurrentJob">
                 🗑 Удалить заявку
             </button>
+            @if (job.Status == JobStatus.Completed)
+            {
+                <div class="card border-success mt-3 bg-light">
+                    <div class="card-body">
+                        <h5 class="text-success fw-bold">🧾 Задание выполнено бригадой</h5>
+                        <p class="small text-muted mb-3">Проверьте трек на карте. Если объемы и геометрия сходятся с проектом КСАР, закройте задачу для передачи в архив.</p>
+                        <button class="btn btn-success w-100 fw-bold" @onclick="CloseJobOfficial">
+                            ✅ Проверено, закрыть заявку
+                        </button>
+                    </div>
+                </div>
+            }
             @if (job.TrackLength.HasValue)
             {
                 <p><strong>Количество точек трека:</strong> @job.TrackLength.Value</p>
@@ -71,6 +83,17 @@ else
         await JobService.DeleteJobAsync(job!.Id);
 
         // Возвращаемся в список заявок
+        Navigation.NavigateTo("/jobs");
+    }
+
+    private async Task CloseJobOfficial()
+    {
+        if (job == null) return;
+
+        job.Status = JobStatus.Closed;
+        await JobService.UpdateJobAsync(job);
+
+        // Возвращаем в общий список документов
         Navigation.NavigateTo("/jobs");
     }
 
