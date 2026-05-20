@@ -40,4 +40,9 @@ public interface IJobService
 
     // Получение выполненных и закрытых задач для материального отчета
     Task<List<Job>> GetJobsForReportAsync(int year, int month);
+
+    // Управление пользователями
+    Task<List<User>> GetAllUsersAsync();
+    Task<User> CreateUserAsync(User user);
+    Task DeleteUserAsync(Guid id);
 }

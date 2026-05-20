@@ -154,4 +154,34 @@ public class JobService : IJobService
             .AsNoTracking()
             .ToListAsync();
     }
+
+    public async Task<List<User>> GetAllUsersAsync()
+    {
+        return await _context.Users.AsNoTracking().ToListAsync();
+    }
+
+    public async Task<User> CreateUserAsync(User user)
+    {
+        _context.Users.Add(user);
+        await _context.SaveChangesAsync();
+        return user;
+    }
+
+    public async Task DeleteUserAsync(Guid id)
+    {
+        // Проверяем, не привязан ли сотрудник к каким-либо заявкам (как создатель или как исполнитель)
+        bool isUsedInJobs = await _context.Jobs.AnyAsync(j => j.CreatedById == id || j.ForemanId == id);
+
+        if (isUsedInJobs)
+        {
+            throw new InvalidOperationException("Невозможно удалить пользователя: он уже фигурирует в существующих заявках (как создатель или исполнитель).");
+        }
+
+        var user = await _context.Users.FindAsync(id);
+        if (user != null)
+        {
+            _context.Users.Remove(user);
+            await _context.SaveChangesAsync();
+        }
+    }
 }

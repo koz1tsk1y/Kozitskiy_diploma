@@ -1,0 +1,151 @@
+﻿@page "/dictionaries/users"
+@rendermode InteractiveServer
+@using KsarErpLite.Models
+@using KsarErpLite.Services
+@inject IJobService JobService
+
+<PageTitle>Справочник: Пользователи</PageTitle>
+
+<div class="container-fluid py-4" style="max-width: 900px;">
+    <h3 class="mb-4 fw-bold">Управление персоналом</h3>
+
+    @if (!string.IsNullOrEmpty(errorMessage))
+    {
+        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+            @errorMessage
+            <button type="button" class="btn-close" @onclick="() => errorMessage = null"></button>
+        </div>
+    }
+
+    <div class="card shadow-sm border-0 mb-4 bg-light">
+        <div class="card-body">
+            <h6 class="fw-bold mb-3">Добавить новую учетную запись</h6>
+            <EditForm Model="newUser" OnValidSubmit="AddUser" FormName="AddUserForm">
+                <DataAnnotationsValidator />
+                <div class="row g-2 align-items-end">
+                    <div class="col-md-3">
+                        <label class="form-label small text-muted">ФИО сотрудника</label>
+                        <InputText @bind-Value="newUser.FullName" class="form-control" placeholder="Иванов И.И." required />
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label small text-muted">Логин</label>
+                        <InputText @bind-Value="newUser.Login" class="form-control" placeholder="login" required />
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label small text-muted">Пароль</label>
+                        <InputText @bind-Value="newUser.PasswordHash" class="form-control" placeholder="***" required />
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label small text-muted">Роль доступа</label>
+                        <InputSelect @bind-Value="newUser.Role" class="form-select">
+                            @foreach (var role in Enum.GetValues<UserRole>())
+                            {
+                                <option value="@role">@role.ToString()</option>
+                            }
+                        </InputSelect>
+                    </div>
+                    <div class="col-md-1">
+                        <button type="submit" class="btn btn-primary w-100 fw-bold">➕</button>
+                    </div>
+                </div>
+            </EditForm>
+        </div>
+    </div>
+
+    <div class="card shadow-sm border-0">
+        <div class="card-body p-0">
+            @if (users == null)
+            {
+                <div class="text-center p-4"><div class="spinner-border text-secondary"></div></div>
+            }
+            else if (!users.Any())
+            {
+                <div class="text-center p-4 text-muted">В системе нет пользователей.</div>
+            }
+            else
+            {
+                <table class="table table-hover mb-0 align-middle">
+                    <thead class="table-light">
+                        <tr>
+                            <th class="ps-4">ФИО</th>
+                            <th>Роль</th>
+                            <th>Логин</th>
+                            <th class="text-end pe-4">Действия</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var user in users)
+                        {
+                            <tr>
+                                <td class="ps-4 fw-bold">@user.FullName</td>
+                                <td>
+                                    <span class="badge @(user.Role == UserRole.Dispatcher ? "bg-primary" : "bg-warning text-dark")">
+                                        @user.Role.ToString()
+                                    </span>
+                                </td>
+                                <td><code class="text-dark">@user.Login</code></td>
+                                <td class="text-end pe-4">
+                                    <button class="btn btn-sm btn-outline-danger" @onclick="() => DeleteUser(user.Id)">
+                                        Удалить
+                                    </button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    private List<User>? users;
+    
+    [SupplyParameterFromForm]
+    private User newUser { get; set; } = new User { FullName = string.Empty, Login = string.Empty, PasswordHash = string.Empty };
+    
+    private string? errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadData();
+    }
+
+    private async Task LoadData()
+    {
+        users = await JobService.GetAllUsersAsync();
+    }
+
+    private async Task AddUser()
+    {
+        errorMessage = null;
+        try
+        {
+            await JobService.CreateUserAsync(newUser);
+            newUser = new User { FullName = string.Empty, Login = string.Empty, PasswordHash = string.Empty };
+            await LoadData();
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "Ошибка при сохранении: " + ex.Message;
+        }
+    }
+
+    private async Task DeleteUser(Guid id)
+    {
+        errorMessage = null;
+        try
+        {
+            await JobService.DeleteUserAsync(id);
+            await LoadData();
+        }
+        catch (InvalidOperationException ex)
+        {
+            errorMessage = ex.Message; 
+        }
+        catch (Exception ex)
+        {
+            errorMessage = "Ошибка удаления: " + ex.Message;
+        }
+    }
+}
