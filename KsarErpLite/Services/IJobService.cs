@@ -30,4 +30,7 @@ public interface IJobService
 
     // Получить активные задания для мобильного приложения бригадира
     Task<List<Job>> GetActiveJobsForForemanAsync();
+
+    // Аналитика для главного экрана
+    Task<Dictionary<JobStatus, int>> GetJobsStatisticsAsync();
 }

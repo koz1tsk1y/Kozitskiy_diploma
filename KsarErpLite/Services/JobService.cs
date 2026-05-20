@@ -105,4 +105,12 @@ public class JobService : IJobService
             .AsNoTracking()
             .ToListAsync();
     }
+
+    public async Task<Dictionary<JobStatus, int>> GetJobsStatisticsAsync()
+    {
+        return await _context.Jobs
+            .GroupBy(j => j.Status)
+            .Select(g => new { Status = g.Key, Count = g.Count() })
+            .ToDictionaryAsync(k => k.Status, v => v.Count);
+    }
 }
