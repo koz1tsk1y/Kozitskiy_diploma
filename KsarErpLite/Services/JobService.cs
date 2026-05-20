@@ -52,6 +52,8 @@ public class JobService : IJobService
             existingJob.TrackLength = job.TrackLength;
             existingJob.KsarXmlRoute = job.KsarXmlRoute;
 
+            existingJob.ForemanId = job.ForemanId;
+
             await _context.SaveChangesAsync();
         }
     }
@@ -99,7 +101,7 @@ public class JobService : IJobService
     {
         return await _context.Jobs
             .Include(j => j.WorkType)
-            // Берем только запланированные или уже в работе
+            .Include(j => j.Foreman) 
             .Where(j => j.Status == JobStatus.Scheduled || j.Status == JobStatus.InProgress)
             .OrderBy(j => j.PlanDate)
             .AsNoTracking()

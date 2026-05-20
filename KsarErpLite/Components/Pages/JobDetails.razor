@@ -21,6 +21,26 @@ else
             <h3>Заявка: @job.Customer</h3>
             <p><strong>Статус:</strong> @job.Status</p>
             <p><strong>ID:</strong> @job.Id</p>
+            <div class="mb-3 p-3 bg-light rounded border mt-3">
+                <label class="form-label small fw-bold text-secondary">Назначить исполнителя (Бригадира):</label>
+                <div class="input-group input-group-sm">
+                    <select class="form-select" @bind="selectedForemanId">
+                        <option value="@Guid.Empty">-- Не назначен --</option>
+                        @foreach (var foreman in foremen)
+                        {
+                            <option value="@foreman.Id">@foreman.FullName</option>
+                        }
+                    </select>
+                    <button type="button" class="btn btn-primary" @onclick="AssignForeman">💾</button>
+                </div>
+                
+                @if (showSaveSuccess)
+                {
+                    <div class="text-success small fw-bold mt-2 animate__animated animate__fadeIn">
+                        ✅ Исполнитель успешно назначен!
+                    </div>
+                }
+            </div>
             <button class="btn btn-sm btn-outline-danger mt-2" @onclick="DeleteCurrentJob">
                 🗑 Удалить заявку
             </button>
@@ -68,13 +88,51 @@ else
     [Parameter]
     public Guid Id { get; set; }
 
+    private List<User> foremen = new();
+    private Guid selectedForemanId;
     private Job? job;
     private LeafletMap? mapComponent;
     private bool isUploading = false;
-
+    
     protected override async Task OnInitializedAsync()
     {
         job = await JobService.GetJobByIdAsync(Id);
+
+        // Загружаем список всех бригадиров для назначения
+        foremen = await JobService.GetUsersByRoleAsync(UserRole.Foreman);
+
+        if (job != null && job.ForemanId.HasValue)
+        {
+            selectedForemanId = job.ForemanId.Value;
+        }
+    }
+
+    private bool showSaveSuccess = false;
+
+    private async Task AssignForeman()
+    {
+        if (job == null) return;
+
+        if (selectedForemanId == Guid.Empty)
+        {
+            job.ForemanId = null;
+        }
+        else
+        {
+            job.ForemanId = selectedForemanId;
+        }
+
+        await JobService.UpdateJobAsync(job);
+        job = await JobService.GetJobByIdAsync(Id);
+
+        // Включаем зеленую надпись, обновляем экран, ждем 2 секунды и убираем
+        showSaveSuccess = true;
+        StateHasChanged(); // Принудительно заставляем Blazor отрисовать изменения
+        
+        await Task.Delay(2000); // Ждем 2 секунды
+        
+        showSaveSuccess = false;
+        StateHasChanged();
     }
 
     private async Task DeleteCurrentJob()

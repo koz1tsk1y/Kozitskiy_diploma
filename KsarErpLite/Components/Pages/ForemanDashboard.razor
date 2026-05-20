@@ -41,6 +41,9 @@
                             <p class="card-text text-secondary mb-4">
                                 <i class="bi bi-tools"></i> @(job.WorkType?.Name ?? "Тип работ не указан")
                             </p>
+                            <p class="card-text text-muted small mb-3">
+                                <i class="bi bi-person-badge"></i> Исполнитель: @(job.Foreman?.FullName ?? "Не назначен")
+                            </p>
 
                             @if (job.Status == JobStatus.Scheduled)
                             {
