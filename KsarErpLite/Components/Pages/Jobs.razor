@@ -47,9 +47,9 @@ else
                     </td>
                     <td>@(job.PlanDate?.ToString("dd.MM.yyyy") ?? "Не назначена")</td>
                     <td>
-                        <button class="btn btn-sm btn-outline-primary" @onclick="() => GoToDetails(job.Id)">
+                        <a class="btn btn-sm btn-outline-primary" href="/jobs/@job.Id">
                             Открыть
-                        </button>
+                        </a>
                     </td>
                 </tr>
             }
@@ -68,11 +68,6 @@ else
     private async Task LoadJobs()
     {
         jobs = await JobService.GetAllJobsAsync();
-    }
-
-    private void GoToDetails(Guid id)
-    {
-        Navigation.NavigateTo($"/jobs/{id}");
     }
 
     private string GetStatusBadgeClass(JobStatus status) => status switch

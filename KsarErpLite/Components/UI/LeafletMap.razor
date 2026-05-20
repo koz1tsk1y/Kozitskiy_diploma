@@ -1,13 +1,12 @@
 ﻿@inject IJSRuntime JSRuntime
 @using KsarErpLite.Models
 
-<div id="@MapId" style="height: 500px; width: 100%; border-radius: 8px; border: 1px solid #ccc;"></div>
+<div id="@uniqueMapId" style="height: 500px; width: 100%; border-radius: 8px; border: 1px solid #ccc; z-index: 1;"></div>
 
 @code {
-    [Parameter]
-    public string MapId { get; set; } = "map";
+    // Генерируем случайный уникальный ID для контейнера
+    private string uniqueMapId = "map_" + Guid.NewGuid().ToString("N");
 
-    // Создаем событие, на которое сможет подписаться родительская страница
     [Parameter]
     public EventCallback OnMapReady { get; set; }
 
@@ -15,10 +14,8 @@
     {
         if (firstRender)
         {
-            // 1. Сначала инициализируем саму карту
-            await JSRuntime.InvokeVoidAsync("ksarMap.init", MapId);
+            await JSRuntime.InvokeVoidAsync("ksarMap.init", uniqueMapId);
             
-            // 2. Затем сообщаем родительскому компоненту, что мы готовы
             if (OnMapReady.HasDelegate)
             {
                 await OnMapReady.InvokeAsync();

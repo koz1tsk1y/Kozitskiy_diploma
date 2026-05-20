@@ -1,0 +1,155 @@
+﻿@page "/schedule"
+@rendermode InteractiveServer
+@using KsarErpLite.Models
+@using KsarErpLite.Services
+@inject IJobService JobService
+
+<PageTitle>Планирование (Календарь)</PageTitle>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h3>График работ на @currentDate.ToString("MMMM yyyy")</h3>
+    <div>
+        <button class="btn btn-outline-primary" @onclick="PrevMonth">◄ Пред. месяц</button>
+        <button class="btn btn-outline-primary ms-2" @onclick="NextMonth">След. месяц ►</button>
+    </div>
+</div>
+
+<div class="schedule-container">
+    <div class="unscheduled-panel" 
+         @ondragover:preventDefault="true"
+         @ondragover="@(() => {})"
+         @ondrop="() => UpdateJobDateAsync(null)">
+        
+        <h5 class="text-center">Очередь заявок</h5>
+        <div class="text-muted small text-center mb-3">Перетащите сюда, чтобы снять с планирования</div>
+
+        @foreach (var job in unscheduledJobs)
+        {
+            <div class="drag-card border-left-secondary" 
+                 draggable="true" 
+                 @ondragstart="() => OnDragStart(job)">
+                <strong>@job.Customer</strong><br />
+                <span class="small text-muted">@job.WorkType?.Name</span>
+            </div>
+        }
+    </div>
+
+    <div class="calendar-grid">
+        <div class="cal-header">Пн</div>
+        <div class="cal-header">Вт</div>
+        <div class="cal-header">Ср</div>
+        <div class="cal-header">Чт</div>
+        <div class="cal-header">Пт</div>
+        <div class="cal-header text-danger">Сб</div>
+        <div class="cal-header text-danger">Вс</div>
+
+        @for (int i = 0; i < emptyDaysAtStart; i++)
+        {
+            <div class="cal-cell empty-cell"></div>
+        }
+
+        @for (int d = 1; d <= daysInMonth; d++)
+        {
+            var day = d;
+            var cellDate = new DateTime(currentDate.Year, currentDate.Month, day, 0, 0, 0, DateTimeKind.Utc);
+            var isToday = cellDate.Date == DateTime.UtcNow.Date;
+
+            <div class="cal-cell @(isToday ? "today" : "")" 
+                 @ondragover:preventDefault="true"
+                 @ondragover="@(() => {})"
+                 @ondrop="() => UpdateJobDateAsync(cellDate)">
+                
+                <div class="cell-day-number">@day</div>
+
+                @foreach (var job in GetJobsForDay(cellDate))
+                {
+                    <div class="drag-card border-left-primary" 
+                         draggable="true" 
+                         @ondragstart="() => OnDragStart(job)">
+                        <div class="text-truncate"><strong>@job.Customer</strong></div>
+                        <div class="small">@job.Status.ToString()</div>
+                    </div>
+                }
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    private DateTime currentDate;
+    private int daysInMonth;
+    private int emptyDaysAtStart;
+
+    private List<Job> allJobs = new();
+    private List<Job> unscheduledJobs => allJobs.Where(j => j.PlanDate == null).ToList();
+    
+    // Переменная, которая хранит заявку, которую мы сейчас "тащим" мышкой
+    private Job? draggedJob;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Устанавливаем текущий месяц (1-е число) в формате UTC
+        var now = DateTime.UtcNow;
+        currentDate = new DateTime(now.Year, now.Month, 1, 0, 0, 0, DateTimeKind.Utc);
+        
+        await LoadCalendarData();
+    }
+
+    private async Task LoadCalendarData()
+    {
+        daysInMonth = DateTime.DaysInMonth(currentDate.Year, currentDate.Month);
+        
+        // Вычисляем, сколько пустых квадратиков нарисовать (понедельник = 1, воскресенье = 7)
+        int dayOfWeek = (int)currentDate.DayOfWeek;
+        emptyDaysAtStart = dayOfWeek == 0 ? 6 : dayOfWeek - 1;
+
+        allJobs = await JobService.GetJobsForPlanningAsync(currentDate.Year, currentDate.Month);
+    }
+
+    private IEnumerable<Job> GetJobsForDay(DateTime date)
+    {
+        return allJobs.Where(j => j.PlanDate?.Date == date.Date);
+    }
+
+    // Событие: когда мы зажали левую кнопку мыши на карточке
+    private void OnDragStart(Job job)
+    {
+        draggedJob = job;
+    }
+
+    // Событие: когда мы отпустили кнопку мыши над конкретным днем (или над очередью)
+    private async Task UpdateJobDateAsync(DateTime? newDate)
+    {
+        if (draggedJob != null)
+        {
+            // Обновляем дату
+            draggedJob.PlanDate = newDate;
+            
+            // Если перетащили в календарь, меняем статус с "Новая" на "Запланирована"
+            if (newDate != null && draggedJob.Status == JobStatus.New)
+            {
+                draggedJob.Status = JobStatus.Scheduled;
+            }
+
+            // Обновляем в БД
+            await JobService.UpdateJobAsync(draggedJob);
+            
+            // Перезагружаем данные
+            await LoadCalendarData();
+            
+            draggedJob = null; // Очищаем буфер
+        }
+    }
+
+    private async Task PrevMonth()
+    {
+        currentDate = currentDate.AddMonths(-1);
+        await LoadCalendarData();
+    }
+
+    private async Task NextMonth()
+    {
+        currentDate = currentDate.AddMonths(1);
+        await LoadCalendarData();
+    }
+}

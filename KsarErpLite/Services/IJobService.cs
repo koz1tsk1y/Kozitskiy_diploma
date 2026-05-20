@@ -24,4 +24,7 @@ public interface IJobService
 
     // Получить список пользователей по роли (чтобы назначить создателя/бригаду)
     Task<List<User>> GetUsersByRoleAsync(UserRole role);
+
+    // Получить заявки для календаря (без даты + на конкретный месяц)
+    Task<List<Job>> GetJobsForPlanningAsync(int year, int month);
 }

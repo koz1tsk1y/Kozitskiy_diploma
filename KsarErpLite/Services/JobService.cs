@@ -43,8 +43,17 @@ public class JobService : IJobService
 
     public async Task UpdateJobAsync(Job job)
     {
-        _context.Jobs.Update(job);
-        await _context.SaveChangesAsync();
+        // Безопасное обновление без конфликтов отслеживания EF Core
+        var existingJob = await _context.Jobs.FindAsync(job.Id);
+        if (existingJob != null)
+        {
+            existingJob.PlanDate = job.PlanDate;
+            existingJob.Status = job.Status;
+            existingJob.TrackLength = job.TrackLength;
+            existingJob.KsarXmlRoute = job.KsarXmlRoute;
+
+            await _context.SaveChangesAsync();
+        }
     }
 
     public async Task DeleteJobAsync(Guid id)
@@ -66,6 +75,20 @@ public class JobService : IJobService
     {
         return await _context.Users
             .Where(u => u.Role == role)
+            .AsNoTracking()
+            .ToListAsync();
+    }
+
+    public async Task<List<Job>> GetJobsForPlanningAsync(int year, int month)
+    {
+        // Создаем границы месяца в UTC (так как PostgreSQL требует UTC)
+        var startDate = new DateTime(year, month, 1, 0, 0, 0, DateTimeKind.Utc);
+        var endDate = startDate.AddMonths(1);
+
+        return await _context.Jobs
+            .Include(j => j.WorkType)
+            .Include(j => j.Foreman)
+            .Where(j => j.PlanDate == null || (j.PlanDate >= startDate && j.PlanDate < endDate))
             .AsNoTracking()
             .ToListAsync();
     }

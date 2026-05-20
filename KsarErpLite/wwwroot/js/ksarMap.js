@@ -5,11 +5,16 @@
 
     // Инициализация карты в конкретном div
     init: function (elementId) {
+        // Если карта уже висела в памяти, безопасно её "убиваем"
         if (this.map) {
-            this.map.remove(); // Очищаем старую карту, если она была
+            try {
+                this.map.off();
+                this.map.remove();
+            } catch (e) { }
+            this.map = null;
         }
 
-        // Координаты Бреста по умолчанию
+        // Инициализируем новую карту
         this.map = L.map(elementId).setView([52.097, 23.734], 11);
 
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -19,6 +24,14 @@
 
         this.trackLayer = L.layerGroup().addTo(this.map);
         this.markersLayer = L.layerGroup().addTo(this.map);
+
+        // ВАЖНО: Фикс для SPA. Через долю секунды заставляем карту 
+        // перепроверить размеры своего контейнера и отрисовать сетку
+        setTimeout(() => {
+            if (this.map) {
+                this.map.invalidateSize();
+            }
+        }, 250);
     },
 
     // Отрисовка распарсенного трека КСАР

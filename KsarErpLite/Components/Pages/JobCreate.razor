@@ -26,7 +26,7 @@
                         <div class="alert alert-danger">@errorMessage</div>
                     }
 
-                    <EditForm Model="@newJob" OnValidSubmit="HandleValidSubmit">
+                    <EditForm Model="@newJob" OnValidSubmit="HandleValidSubmit" FormName="CreateJobForm">
                         <DataAnnotationsValidator />
                         <ValidationSummary class="text-danger" />
 
@@ -63,7 +63,8 @@
 </div>
 
 @code {
-    private Job newJob = new Job { Customer = string.Empty };
+    [SupplyParameterFromForm]
+    private Job newJob { get; set; } = new Job { Customer = string.Empty };
     private List<WorkType> workTypes = new();
     private List<User> dispatchers = new();
     private bool isLoading = true;
@@ -127,14 +128,11 @@
         {
             newJob.Status = JobStatus.New;
 
-            // ФИКС 1: PostgreSQL требует строго UTC-формат для дат. 
-            // Конвертируем дату из браузера в универсальное время.
             if (newJob.PlanDate.HasValue)
             {
                 newJob.PlanDate = DateTime.SpecifyKind(newJob.PlanDate.Value, DateTimeKind.Utc);
             }
 
-            // ФИКС 2: Подстраховка на случай, если компонент потерял ID диспетчера при обновлении
             if (newJob.CreatedById == Guid.Empty)
             {
                 var disp = (await JobService.GetUsersByRoleAsync(UserRole.Dispatcher)).FirstOrDefault();
@@ -142,11 +140,18 @@
             }
 
             var createdJob = await JobService.CreateJobAsync(newJob);
+            
+            // Эта команда генерирует NavigationException для смены страницы
             Navigation.NavigateTo($"/jobs/{createdJob.Id}");
+        }
+        catch (NavigationException)
+        {
+            // Системное исключение Blazor для редиректа. 
+            // Просто пробрасываем его дальше, чтобы страница переключилась!
+            throw;
         }
         catch (Exception ex)
         {
-            // ФИКС 3: Достаем истинную причину (InnerException) и выводим её прямо на экран
             var realError = ex.InnerException != null ? ex.InnerException.Message : ex.Message;
             errorMessage = $"Ошибка БД: {realError}";
         }
