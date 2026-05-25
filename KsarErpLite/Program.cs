@@ -16,9 +16,8 @@ namespace KsarErpLite
             builder.Services.AddRazorComponents()
                 .AddInteractiveServerComponents();
 
-            // Регистрация ApplicationDbContext с подключением Npgsql и NetTopologySuite
             builder.Services.AddDbContext<ApplicationDbContext>(options =>
-                options.UseNpgsql(
+                options.UseSqlServer(
                     builder.Configuration.GetConnectionString("DefaultConnection"),
                     o => o.UseNetTopologySuite()));
 
