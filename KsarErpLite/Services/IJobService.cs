@@ -45,4 +45,7 @@ public interface IJobService
     Task<List<User>> GetAllUsersAsync();
     Task<User> CreateUserAsync(User user);
     Task DeleteUserAsync(Guid id);
+
+    // Аутентификация
+    Task<User?> AuthenticateAsync(string login, string password);
 }

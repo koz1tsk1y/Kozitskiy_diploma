@@ -186,4 +186,11 @@ public class JobService : IJobService
             await _context.SaveChangesAsync();
         }
     }
+
+    public async Task<User?> AuthenticateAsync(string login, string password)
+    {
+        return await _context.Users
+            .AsNoTracking()
+            .FirstOrDefaultAsync(u => u.Login == login && u.PasswordHash == password);
+    }
 }
