@@ -1,4 +1,5 @@
 ﻿@inherits LayoutComponentBase
+@using Microsoft.AspNetCore.Components.Authorization
 
 <div class="page-container">
     <div class="sidebar">
@@ -6,6 +7,15 @@
     </div>
 
     <main class="main-content">
+        <AuthorizeView>
+            <Authorized>
+                <div class="d-flex justify-content-end align-items-center p-3 border-bottom mb-3 bg-light">
+                    <span class="me-3 fw-bold text-secondary">👤 @context.User.Identity?.Name</span>
+                    <a href="/logout" class="btn btn-sm btn-outline-danger">Выход</a>
+                </div>
+            </Authorized>
+        </AuthorizeView>
+
         <div class="content-body">
             @Body
         </div>
