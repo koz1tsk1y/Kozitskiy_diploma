@@ -1,7 +1,8 @@
 using KsarErpLite.Components;
 using KsarErpLite.Data;
-using Microsoft.EntityFrameworkCore;
 using KsarErpLite.Services;
+using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.EntityFrameworkCore;
 
 namespace KsarErpLite
 {
@@ -26,6 +27,20 @@ namespace KsarErpLite
 
             builder.Services.AddScoped<IKsarParserService, KsarParserService>();
 
+            // Встроенная система авторизации на базе Cookie
+            builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
+                .AddCookie(options =>
+                {
+                    options.LoginPath = "/login"; // Куда перенаправлять неавторизованных
+                    options.LogoutPath = "/logout";
+                    options.AccessDeniedPath = "/access-denied";
+                    options.Cookie.Name = "KsarErpAuth";
+                    options.ExpireTimeSpan = TimeSpan.FromDays(7); // Сессия на неделю
+                });
+
+            builder.Services.AddAuthorization();
+            builder.Services.AddCascadingAuthenticationState();
+
             var app = builder.Build();
 
             // Configure the HTTP request pipeline.
@@ -34,6 +49,9 @@ namespace KsarErpLite
                 app.UseExceptionHandler("/Error", createScopeForErrors: true);
                 app.UseHsts();
             }
+
+            app.UseAuthentication();
+            app.UseAuthorization();
 
             app.UseHttpsRedirection();
             app.UseStaticFiles();
