@@ -54,16 +54,16 @@
     private string? errorMessage;
 
     private async Task Authenticate()
-    {
+{
         var user = await JobService.AuthenticateAsync(loginModel.Login, loginModel.Password);
-        
+    
         if (user == null)
         {
             errorMessage = "Неверный логин или пароль";
             return;
         }
 
-        // 1. Создаем "паспорт" пользователя (Claims)
+        // 1. Создаем чистый "паспорт" пользователя (только строки, никаких Int)
         var claims = new List<Claim>
         {
             new Claim(ClaimTypes.NameIdentifier, user.Id.ToString()),
@@ -71,24 +71,23 @@
             new Claim(ClaimTypes.Role, user.Role.ToString())
         };
 
-        var identity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
+        // 2. Строго привязываем типы (Best Practice)
+        var identity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme, ClaimTypes.Name, ClaimTypes.Role);
         var principal = new ClaimsPrincipal(identity);
 
-        // 2. Авторизуем пользователя и записываем Cookie
         if (HttpContext != null)
         {
+            // 3. Выписываем Cookie
             await HttpContext.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, principal);
-            
-            // 3. Умный редирект в зависимости от роли
+        
+            // 4. Обязательный forceLoad: true для обновления сессии Blazor
             if (user.Role == UserRole.Foreman)
             {
-                // Бригадира сразу кидаем в мобильный АРМ
-                Navigation.NavigateTo("/foreman");
+                Navigation.NavigateTo("/foreman", forceLoad: true);
             }
             else
             {
-                // Диспетчера пускаем на аналитический дашборд
-                Navigation.NavigateTo("/");
+                Navigation.NavigateTo("/", forceLoad: true);
             }
         }
     }

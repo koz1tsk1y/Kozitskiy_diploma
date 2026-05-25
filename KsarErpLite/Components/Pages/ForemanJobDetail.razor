@@ -1,5 +1,5 @@
 ﻿@page "/foreman/job/{Id:guid}"
-@attribute [Authorize(Roles = "Foreman")]
+@attribute [Authorize(Roles = "Admin, Foreman")]
 @rendermode InteractiveServer
 @using KsarErpLite.Models
 @using KsarErpLite.Services
