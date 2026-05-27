@@ -4,6 +4,7 @@
 @using KsarErpLite.Models
 @using KsarErpLite.Services
 @inject IJobService JobService
+@inject IJSRuntime JSRuntime
 
 <PageTitle>Отчет по расходу материалов</PageTitle>
 
@@ -43,6 +44,14 @@
                         📊 Сформировать отчет
                     </button>
                 </div>
+                @if (reportJobs != null && reportJobs.Any())
+                {
+                    <div class="col-md-4">
+                        <button class="btn btn-success w-100 fw-bold" @onclick="ExportToCsv">
+                            📥 Выгрузить в Excel (CSV)
+                        </button>
+                    </div>
+                }
             </div>
         </div>
     </div>
@@ -175,6 +184,63 @@
         if (job.WorkType?.Unit?.ToLower() == "км") return volume * 160.0; // 160 кг на 1 км
         if (job.WorkType?.Unit?.ToLower() == "м2") return volume * 0.6;   // 0.6 кг на 1 м2
         return volume * 0.2;
+    }
+
+    private double CalculateVolume(Job job)
+    {
+        if (!job.TrackLength.HasValue) return 0;
+        
+        if (job.WorkType?.Unit?.ToLower() == "км")
+        {
+            return (job.TrackLength.Value * 2.0) / 1000.0; // 1 точка = 2 метра
+        }
+        if (job.WorkType?.Unit?.ToLower() == "м2")
+        {
+            return job.TrackLength.Value * 0.5; // 1 точка = 0.5 м2
+        }
+        return job.TrackLength.Value;
+    }
+
+    private async Task ExportToCsv()
+    {
+        if (reportJobs == null || !reportJobs.Any()) return;
+
+        var builder = new System.Text.StringBuilder();
+        
+        // Заголовки столбцов CSV
+        builder.AppendLine("Заказчик;Тип работ;Исполнитель;Длина (точек КСАР);Расчетный объем;Ед. изм.;Расход Эмали (кг);Расход Шариков (кг)");
+
+        foreach (var job in reportJobs)
+        {
+            var volume = CalculateVolume(job);
+            var paint = CalculatePaint(job, volume);
+            var beads = CalculateBeads(job, volume);
+
+            // Собираем строку, заменяя возможные точки с запятой в названиях, чтобы не сломать формат
+            builder.AppendLine($"{job.Customer.Replace(";", ",")};" +
+                               $"{job.WorkType?.Name ?? "—"};" +
+                               $"{job.Foreman?.FullName ?? "—"};" +
+                               $"{job.TrackLength ?? 0};" +
+                               $"{Math.Round(volume, 2)};" +
+                               $"{job.WorkType?.Unit ?? "—"};" +
+                               $"{Math.Round(paint, 2)};" +
+                               $"{Math.Round(beads, 2)}");
+        }
+
+        // Итоговая строка
+        builder.AppendLine($";;;;ИТОГО ЗА МЕСЯЦ:;;{Math.Round(totalPaint, 2)};{Math.Round(totalBeads, 2)}");
+
+        // Подготавливаем файл для скачивания (добавляем BOM для русского Excel)
+        var csvContent = builder.ToString();
+        var bytes = System.Text.Encoding.UTF8.GetBytes(csvContent);
+        var bom = new byte[] { 0xEF, 0xBB, 0xBF }; // UTF-8 BOM
+        var finalBytes = bom.Concat(bytes).ToArray();
+        
+        var base64 = Convert.ToBase64String(finalBytes);
+        var fileName = $"Material_Report_Month_{selectedMonth}_{DateTime.Now.Year}.csv";
+
+        // Вызываем нашу JS функцию
+        await JSRuntime.InvokeVoidAsync("downloadFileFromBase64", fileName, base64);
     }
 
     private void CalculateTotals()

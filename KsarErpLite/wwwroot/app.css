@@ -246,3 +246,31 @@ body {
 .border-left-primary {
     border-left: 4px solid #fae002 !important;
 }
+
+
+
+/* Настройки для идеальной печати Акта */
+@media print {
+    /* Скрываем абсолютно всё приложение, кроме нашего бланка */
+    body * {
+        visibility: hidden;
+    }
+
+    #printable-act, #printable-act * {
+        visibility: visible;
+    }
+
+    #printable-act {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+        padding: 0 !important;
+        margin: 0 !important;
+        box-shadow: none !important;
+    }
+    /* Прячем модальные рамки блейзора при печати */
+    .modal-backdrop, .d-print-none {
+        display: none !important;
+    }
+}

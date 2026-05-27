@@ -8,6 +8,7 @@
 @inject IJobService JobService
 @inject IKsarParserService KsarParser
 @inject NavigationManager Navigation
+@inject IJSRuntime JSRuntime
 
 <PageTitle>Детали заявки</PageTitle>
 
@@ -42,6 +43,104 @@ else
                     </div>
                 }
             </div>
+
+            @if (job.Status == JobStatus.Completed || job.Status == JobStatus.Closed)
+            {
+                <div class="card shadow-sm border-0 mb-4 border-top border-success border-3">
+                    <div class="card-body d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="fw-bold text-success mb-1">Работы по объекту завершены</h6>
+                            <p class="text-muted small mb-0">Вы можете сформировать официальный документ для заказчика.</p>
+                        </div>
+                        <button type="button" class="btn btn-success fw-bold py-2 px-4" @onclick="ShowActModal">
+                            📄 Сформировать Акт (PDF)
+                        </button>
+                    </div>
+                </div>
+            }
+
+            @if (isActModalOpen)
+            {
+                <div class="modal fade show d-block" style="background: rgba(0,0,0,0.5); overflow-y: auto;" tabindex="-1">
+                    <div class="modal-dialog modal-lg modal-dialog-centered">
+                        <div class="modal-content border-0 rounded-4 shadow-lg">
+                            <div class="modal-header bg-light border-0 py-3 d-print-none">
+                                <h5 class="modal-title fw-bold">Предварительный просмотр документа</h5>
+                                <button type="button" class="btn-close" @onclick="CloseActModal"></button>
+                            </div>
+                
+                            <div class="modal-body p-5 bg-white text-dark workflow-act-print" id="printable-act">
+                                <div class="text-center mb-4">
+                                    <h4 class="fw-bold mb-1 text-uppercase" style="letter-spacing: 1px;">Акт выполненных работ</h4>
+                                    <p class="text-muted small">по договору на нанесение дорожной разметки</p>
+                                </div>
+
+                                <div class="d-flex justify-content-between mb-4 small border-bottom pb-2">
+                                    <span><strong>Дата составления:</strong> @DateTime.Now.ToString("dd.MM.yyyy")</span>
+                                    <span><strong>Номер заявки:</strong> № @job.Id.ToString().Substring(0, 8).ToUpper()</span>
+                                </div>
+
+                                <div class="mb-4">
+                                    <p class="mb-1"><strong>Исполнитель:</strong> СООО «СТиМ» (Конструкторское бюро №2)</p>
+                                    <p class="mb-0"><strong>Заказчик (Объект):</strong> @job.Customer</p>
+                                </div>
+
+                                <p class="mb-3">
+                                    Мы, нижеподписавшиеся, составили настоящий акт в том, что Исполнитель выполнил, а Заказчик принял работы по автоматизированному нанесению (восстановлению) дорожной разметки с применением комплекса КСАР.
+                                </p>
+
+                                <table class="table table-bordered border-dark align-middle my-4 text-center small">
+                                    <thead class="table-light border-dark">
+                                        <tr>
+                                            <th>Наименование работ</th>
+                                            <th>Кол-во точек лога КСАР</th>
+                                            <th>Расчетный объем</th>
+                                            <th>Ед. изм.</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr>
+                                            <td class="text-start">@(job.WorkType?.Name ?? "Дорожная разметка")</td>
+                                            <td>@(job.TrackLength?.ToString() ?? "—")</td>
+                                            <td>@CalculateVolume().ToString("F2")</td>
+                                            <td>@(job.WorkType?.Unit ?? "—")</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+
+                                <p class="mb-4">
+                                    <strong>Заключение:</strong> Работы выполнены в полном объеме, согласно разработанному виртуальному проекту разметки. Стороны претензий друг к другу не имеют.
+                                </p>
+
+                                <div class="row mt-5 pt-4">
+                                    <div class="col-6 border-end border-secondary">
+                                        <p class="mb-4 small text-muted text-uppercase">От Исполнителя (Бригадир):</p>
+                                        <div class="d-flex align-items-end mt-4">
+                                            <span class="text-decoration-underline me-2">@(job.Foreman?.FullName ?? "__________________")</span>
+                                            <span class="small text-muted">(подпись)</span>
+                                        </div>
+                                    </div>
+                                    <div class="col-6 ps-4">
+                                        <p class="mb-4 small text-muted text-uppercase">От Заказчика:</p>
+                                        <div class="d-flex align-items-end mt-4">
+                                            <span>_______________________</span>
+                                            <span class="small text-muted ms-2">(подпись)</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                
+                            <div class="modal-footer bg-light border-0 d-print-none py-3">
+                                <button type="button" class="btn btn-secondary rounded-3 fw-bold" @onclick="CloseActModal">Закрыть</button>
+                                <button type="button" class="btn btn-primary rounded-3 fw-bold px-4" @onclick="PrintAct">
+                                    🖨 Распечатать / Сохранить в PDF
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+
             <button class="btn btn-sm btn-outline-danger mt-2" @onclick="DeleteCurrentJob">
                 🗑 Удалить заявку
             </button>
@@ -94,6 +193,33 @@ else
     private Job? job;
     private LeafletMap? mapComponent;
     private bool isUploading = false;
+
+    private bool isActModalOpen = false;
+
+    private void ShowActModal() => isActModalOpen = true;
+    private void CloseActModal() => isActModalOpen = false;
+
+    private async Task PrintAct()
+    {
+        // Вызываем системную печать браузера
+        await JSRuntime.InvokeVoidAsync("printPage");
+    }
+
+    // Математика перевода точек в физический объем (точно такая же как в отчете по материалам)
+    private double CalculateVolume()
+    {
+        if (!job.TrackLength.HasValue) return 0;
+        
+        if (job.WorkType?.Unit?.ToLower() == "км")
+        {
+            return (job.TrackLength.Value * 2.0) / 1000.0; // 1 точка = 2 метра трассы
+        }
+        if (job.WorkType?.Unit?.ToLower() == "м2")
+        {
+            return job.TrackLength.Value * 0.5; // 1 точка = 0.5 м2
+        }
+        return job.TrackLength.Value;
+    }
     
     protected override async Task OnInitializedAsync()
     {

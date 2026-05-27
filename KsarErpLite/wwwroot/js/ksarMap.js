@@ -81,3 +81,5 @@ window.downloadFileFromBase64 = function (fileName, base64String) {
     link.click();
     document.body.removeChild(link);
 };
+
+window.printPage = () => { window.print(); };
