@@ -128,7 +128,6 @@
             
             if (newDate != null)
             {
-                // Кейс А: Перетащили в календарь. 
                 // Меняем статус на Запланирована, если она была Новой или с загруженным проектом
                 if (draggedJob.Status == JobStatus.New || draggedJob.Status == JobStatus.ProjectLoaded)
                 {
@@ -137,7 +136,6 @@
             }
             else
             {
-                // Кейс Б: Перетащили обратно в левую колонку (сняли с графика).
                 // Возвращаем статус назад. Если XML-путь есть - значит проект загружен, иначе - просто Новая.
                 draggedJob.Status = !string.IsNullOrEmpty(draggedJob.KsarXmlRoute)
                     ? JobStatus.ProjectLoaded

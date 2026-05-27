@@ -12,7 +12,6 @@ namespace KsarErpLite
         {
             var builder = WebApplication.CreateBuilder(args);
 
-            // Add services to the container.
             builder.Services.AddRazorComponents()
                 .AddInteractiveServerComponents();
 
@@ -42,7 +41,14 @@ namespace KsarErpLite
 
             var app = builder.Build();
 
-            // Configure the HTTP request pipeline.
+            var supportedCultures = new[] { "ru-RU" };
+            var localizationOptions = new RequestLocalizationOptions()
+                .SetDefaultCulture(supportedCultures[0])
+                .AddSupportedCultures(supportedCultures)
+                .AddSupportedUICultures(supportedCultures);
+
+            app.UseRequestLocalization(localizationOptions);
+
             if (!app.Environment.IsDevelopment())
             {
                 app.UseExceptionHandler("/Error", createScopeForErrors: true);
