@@ -70,3 +70,14 @@
         }
     }
 };
+
+// метод скачивания небольших файлов через Base64
+window.downloadFileFromBase64 = function (fileName, base64String) {
+    const link = document.createElement('a');
+    link.download = fileName;
+    // Формируем ссылку на основе Base64
+    link.href = 'data:application/xml;base64,' + base64String;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+};
