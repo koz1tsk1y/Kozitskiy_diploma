@@ -8,7 +8,7 @@
 <PageTitle>Справочник: Типы работ</PageTitle>
 
 <div class="container-fluid py-4" style="max-width: 800px;">
-    <h3 class="mb-4 fw-bold">Справочник: Типы разметки</h3>
+    <h3 class="mb-4 fw-bold">Справочник: Типы работ</h3>
 
     @if (!string.IsNullOrEmpty(errorMessage))
     {
@@ -31,7 +31,7 @@
                         <InputText @bind-Value="newWorkType.Unit" class="form-control" placeholder="Ед. изм. (км, м2)" required />
                     </div>
                     <div class="col-md-2">
-                        <button type="submit" class="btn btn-primary w-100 fw-bold">➕</button>
+                        <button type="submit" class="btn btn-primary w-100 fw-bold">Добавить</button>
                     </div>
                 </div>
             </EditForm>

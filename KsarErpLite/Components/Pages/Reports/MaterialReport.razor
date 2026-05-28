@@ -41,14 +41,14 @@
                 </div>
                 <div class="col-md-4">
                     <button class="btn btn-primary w-100 fw-bold" @onclick="GenerateReport">
-                        📊 Сформировать отчет
+                        Сформировать отчет
                     </button>
                 </div>
                 @if (reportJobs != null && reportJobs.Any())
                 {
                     <div class="col-md-4">
                         <button class="btn btn-success w-100 fw-bold" @onclick="ExportToCsv">
-                            📥 Выгрузить в Excel (CSV)
+                            Выгрузить в Excel (CSV)
                         </button>
                     </div>
                 }
@@ -174,6 +174,11 @@
 
     private double CalculatePaint(Job job, double volume)
     {
+        if (job.WorkType != null && !job.WorkType.Name.ToLower().Contains("нанесение"))
+        {
+            return 0;
+        }
+
         if (job.WorkType?.Unit?.ToLower() == "км") return volume * 450.0; // 450 кг на 1 км
         if (job.WorkType?.Unit?.ToLower() == "м2") return volume * 3.5;   // 3.5 кг на 1 м2
         return volume * 1.0;
@@ -181,6 +186,11 @@
 
     private double CalculateBeads(Job job, double volume)
     {
+        if (job.WorkType != null && !job.WorkType.Name.ToLower().Contains("нанесение"))
+        {
+            return 0;
+        }
+
         if (job.WorkType?.Unit?.ToLower() == "км") return volume * 160.0; // 160 кг на 1 км
         if (job.WorkType?.Unit?.ToLower() == "м2") return volume * 0.6;   // 0.6 кг на 1 м2
         return volume * 0.2;
