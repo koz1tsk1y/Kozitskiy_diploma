@@ -21,8 +21,23 @@ else
     <div class="row mb-4">
         <div class="col-md-6">
             <h3>Заявка: @job.Customer</h3>
-            <p><strong>Статус:</strong> @job.Status</p>
-            <p><strong>ID:</strong> @job.Id</p>
+            
+            <p class="mb-1"><strong>Статус:</strong> @GetStatusTemplateName(job.Status)</p>
+            
+            <p class="mb-1">
+                <strong>Запланированная дата:</strong> 
+                @if (job.PlanDate.HasValue)
+                {
+                    <span>@job.PlanDate.Value.ToString("dd.MM.yyyy")</span>
+                }
+                else
+                {
+                    <span>Не назначена (В очереди)</span>
+                }
+            </p>
+            
+            <p class="text-muted small mb-3"><strong>ID:</strong> @job.Id</p>
+
             <div class="mb-3 p-3 bg-light rounded border mt-3">
                 <label class="form-label small fw-bold text-secondary">Назначить исполнителя (Бригадира):</label>
                 <div class="input-group input-group-sm">
@@ -68,7 +83,7 @@ else
                                 <h5 class="modal-title fw-bold">Предварительный просмотр документа</h5>
                                 <button type="button" class="btn-close" @onclick="CloseActModal"></button>
                             </div>
-                
+        
                             <div class="modal-body p-5 bg-white text-dark workflow-act-print" id="printable-act">
                                 <div class="text-center mb-4">
                                     <h4 class="fw-bold mb-1 text-uppercase" style="letter-spacing: 1px;">Акт выполненных работ</h4>
@@ -129,7 +144,7 @@ else
                                     </div>
                                 </div>
                             </div>
-                
+                 
                             <div class="modal-footer bg-light border-0 d-print-none py-3">
                                 <button type="button" class="btn btn-secondary rounded-3 fw-bold" @onclick="CloseActModal">Закрыть</button>
                                 <button type="button" class="btn btn-primary rounded-3 fw-bold px-4" @onclick="PrintAct">
@@ -156,15 +171,13 @@ else
                     </div>
                 </div>
             }
-            @if (job.TrackLength.HasValue)
-            {
-                <p><strong>Количество точек трека:</strong> @job.TrackLength.Value</p>
-            }
         </div>
+        
         <div class="col-md-6 text-end">
-            <div class="card p-3 bg-light">
+            <div class="card p-3 bg-light text-start">
                 <h5>Загрузка проекта (КСАР)</h5>
-                @if (job.Status == JobStatus.New)
+                
+                @if (string.IsNullOrEmpty(job.KsarXmlRoute))
                 {
                     <p class="text-muted small">Прикрепите XML-файл виртуального трека</p>
                     <InputFile OnChange="HandleXmlUpload" accept=".xml" class="form-control" />
@@ -175,7 +188,15 @@ else
                 }
                 else
                 {
-                    <div class="alert alert-success p-2 mb-0">Проект успешно загружен</div>
+                    <div class="alert alert-success d-flex justify-content-between align-items-center mt-3 shadow-sm">
+                        <div>
+                            <span class="fw-bold"><i class="bi bi-check-circle-fill me-2"></i>Проект успешно прикреплен</span>
+                            <div class="small mt-1 text-muted">Длина маршрута: @job.TrackLength точек</div>
+                        </div>
+                        <button type="button" class="btn btn-outline-danger btn-sm fw-bold" @onclick="DeleteXmlFileAsync">
+                            🗑 Удалить
+                        </button>
+                    </div>
                 }
             </div>
         </div>
@@ -193,8 +214,8 @@ else
     private Job? job;
     private LeafletMap? mapComponent;
     private bool isUploading = false;
-
     private bool isActModalOpen = false;
+    private bool showSaveSuccess = false;
 
     private void ShowActModal() => isActModalOpen = true;
     private void CloseActModal() => isActModalOpen = false;
@@ -208,7 +229,7 @@ else
     // Математика перевода точек в физический объем (точно такая же как в отчете по материалам)
     private double CalculateVolume()
     {
-        if (!job.TrackLength.HasValue) return 0;
+        if (job == null || !job.TrackLength.HasValue) return 0;
         
         if (job.WorkType?.Unit?.ToLower() == "км")
         {
@@ -224,22 +245,19 @@ else
     protected override async Task OnInitializedAsync()
     {
         job = await JobService.GetJobByIdAsync(Id);
-
         // Загружаем список всех бригадиров для назначения
         foremen = await JobService.GetUsersByRoleAsync(UserRole.Foreman);
-
+        
         if (job != null && job.ForemanId.HasValue)
         {
             selectedForemanId = job.ForemanId.Value;
         }
     }
 
-    private bool showSaveSuccess = false;
-
     private async Task AssignForeman()
     {
         if (job == null) return;
-
+        
         if (selectedForemanId == Guid.Empty)
         {
             job.ForemanId = null;
@@ -251,7 +269,7 @@ else
 
         await JobService.UpdateJobAsync(job);
         job = await JobService.GetJobByIdAsync(Id);
-
+        
         // Включаем зеленую надпись, обновляем экран, ждем 2 секунды и убираем
         showSaveSuccess = true;
         StateHasChanged(); // Принудительно заставляем Blazor отрисовать изменения
@@ -266,7 +284,6 @@ else
     {
         // Вызываем метод удаления из нашего сервиса
         await JobService.DeleteJobAsync(job!.Id);
-
         // Возвращаемся в список заявок
         Navigation.NavigateTo("/jobs");
     }
@@ -274,7 +291,7 @@ else
     private async Task CloseJobOfficial()
     {
         if (job == null) return;
-
+        
         job.Status = JobStatus.Closed;
         await JobService.UpdateJobAsync(job);
 
@@ -307,54 +324,111 @@ else
     private async Task HandleXmlUpload(InputFileChangeEventArgs e)
     {
         if (job == null) return;
+        
         isUploading = true;
+        StateHasChanged(); // Показываем спиннер загрузки
 
         try
         {
             var maxAllowedSize = 10 * 1024 * 1024; // Лимит 10 МБ
-            
-            // Определяем путь к папке Uploads в корне проекта
             var uploadsFolder = Path.Combine(Directory.GetCurrentDirectory(), "Uploads");
             if (!Directory.Exists(uploadsFolder))
             {
                 Directory.CreateDirectory(uploadsFolder);
             }
 
-            // Формируем имя файла на основе ID заявки
             var filePath = Path.Combine(uploadsFolder, $"{job.Id}.xml");
-
-            // Физически сохраняем файл из браузера на диск сервера
+            
+            // 1. Сохраняем файл физически
             await using (var fileStream = new FileStream(filePath, FileMode.Create))
             {
                 await e.File.OpenReadStream(maxAllowedSize).CopyToAsync(fileStream);
             }
 
-            // Читаем уже сохраненный файл для парсинга и вывода на карту
+            // 2. Читаем и парсим файл ОДИН раз (сохраняем данные в переменную parsedData)
+            KsarTrackData? parsedData = null;
             await using (var readStream = File.OpenRead(filePath))
             {
-                var trackData = await KsarParser.ParseXmlAsync(readStream);
+                parsedData = await KsarParser.ParseXmlAsync(readStream);
+            }
+            
+            if (parsedData != null && parsedData.TrackPoints.Any())
+            {
+                // 3. Обновляем данные в БД
+                job.TrackLength = parsedData.TrackPoints.Count;
+                job.Status = JobStatus.ProjectLoaded;
+                job.KsarXmlRoute = filePath; 
+                
+                await JobService.UpdateJobAsync(job);
 
-                if (trackData.TrackPoints.Any() && mapComponent != null)
+                // 4. Отключаем крутилку загрузки и говорим Blazor обновить HTML интерфейса
+                isUploading = false;
+                StateHasChanged();
+                
+                // 5. МАГИЯ: Даем браузеру 100 миллисекунд, чтобы он успел применить HTML-изменения 
+                // и освободил поток для тяжелого рендеринга Leaflet.
+                await Task.Delay(100);
+
+                // 6. Отрисовываем трек напрямую из памяти, не читая файл заново!
+                if (mapComponent != null)
                 {
-                    // Отрисовка
-                    await mapComponent.DrawTrackAsync(trackData);
-
-                    // Обновление данных в БД
-                    job.Status = JobStatus.ProjectLoaded;
-                    job.TrackLength = trackData.TrackPoints.Count;
-                    job.KsarXmlRoute = filePath; // Записываем путь к файлу в базу данных
-                    
-                    await JobService.UpdateJobAsync(job);
+                    await mapComponent.DrawTrackAsync(parsedData);
                 }
             }
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Ошибка при обработке и сохранении XML: {ex.Message}");
-        }
-        finally
-        {
+            Console.WriteLine($"Ошибка при загрузке XML: {ex.Message}");
             isUploading = false;
+            StateHasChanged(); // Скрываем крутилку в случае ошибки
         }
     }
+
+    private async Task DeleteXmlFileAsync()
+    {
+        if (job == null) return;
+
+        if (!string.IsNullOrEmpty(job.KsarXmlRoute))
+        {
+            try 
+            {
+                if (System.IO.File.Exists(job.KsarXmlRoute))
+                {
+                    System.IO.File.Delete(job.KsarXmlRoute);
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Ошибка при удалении файла: {ex.Message}");
+            }
+        }
+
+        job.KsarXmlRoute = null;
+        job.TrackLength = null;
+        
+        if (job.Status == JobStatus.ProjectLoaded)
+        {
+            job.Status = JobStatus.New;
+        }
+
+        if (mapComponent != null)
+        {
+            await mapComponent.ClearMapAsync();
+        }
+
+        await JobService.UpdateJobAsync(job);
+    }
+
+    
+
+    private string GetStatusTemplateName(JobStatus status) => status switch
+    {
+        JobStatus.New => "Новая",
+        JobStatus.ProjectLoaded => "Проект загружен",
+        JobStatus.Scheduled => "В расписании",
+        JobStatus.InProgress => "На трассе (В работе)",
+        JobStatus.Completed => "Выполнена бригадой",
+        JobStatus.Closed => "В архиве (Закрыта)",
+        _ => status.ToString()
+    };
 }

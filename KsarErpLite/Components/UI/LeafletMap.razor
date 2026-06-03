@@ -27,4 +27,12 @@
     {
         await JSRuntime.InvokeVoidAsync("ksarMap.drawKsarTrack", trackData);
     }
+
+    public async Task ClearMapAsync()
+    {
+        if (JSRuntime != null)
+        {
+            await JSRuntime.InvokeVoidAsync("clearKsarMap");
+        }
+    }
 }

@@ -82,4 +82,16 @@ window.downloadFileFromBase64 = function (fileName, base64String) {
     document.body.removeChild(link);
 };
 
+
 window.printPage = () => { window.print(); };
+
+
+window.clearKsarMap = function () {
+    if (window.ksarMap && window.ksarMap.map) {
+        window.ksarMap.map.eachLayer(function (layer) {
+            if (!layer._url) {
+                window.ksarMap.map.removeLayer(layer);
+            }
+        });
+    }
+};
